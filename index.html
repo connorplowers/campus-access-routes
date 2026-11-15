@@ -1,0 +1,1252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Campus Access Routes</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --bg: #ffffff; --card: #ffffff; --soft: #f3f2f7; --text: #1b1a22; --muted: #5c5a6b; --line: #e2e0ea;
+    /* HWS palette: Colleges purple, Hobart orange, William Smith green (approximate; adjust here) */
+    --hws-purple: #4f2683; --hws-purple-dark: #3a1c62; --hobart-orange: #f26b21; --ws-green: #00843d;
+    --accent: var(--hws-purple); --accent-soft: #eee8f7; --accent-text: #ffffff; --route: #4f2683;
+    --cta: var(--hobart-orange); --cta-text: #1b1a22; --me: #1a73e8;
+    --stairs: #d62828; --steep: #c98a00; --rough: #8a5a2b; --blocked: #222222; --ok: var(--ws-green);
+    --start: var(--ws-green); --end: var(--hobart-orange);
+    --warn-bg: #fff4de; --warn-text: #6b4300; --info-bg: #eef3ff; --info-text: #1e3a8a;
+    --shadow: 0 6px 24px rgba(20, 16, 40, .18), 0 1px 3px rgba(20, 16, 40, .12);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121117; --card: #1c1b23; --soft: #26252f; --text: #eeedf3; --muted: #a9a7b8; --line: #34333f;
+      --accent: #b49be8; --accent-soft: #2f2846; --accent-text: #15131c;
+      --warn-bg: #3a2c12; --warn-text: #f5d39a; --info-bg: #1c2742; --info-text: #bcd0ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--hobart-orange); outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  #map { position: fixed; inset: 0; }
+
+  /* ---------- the floating card ---------- */
+  .card { position: fixed; z-index: 1000; top: 16px; left: 16px; width: 390px; max-height: calc(100% - 32px);
+    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    display: flex; flex-direction: column; overflow: hidden; }
+  .card-scroll { overflow-y: auto; padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 14px; }
+  .handle { display: none; }
+  .peek { display: none; align-items: center; gap: 12px; padding: 6px 16px 14px; border: none; background: none; width: 100%; text-align: left; }
+  .peek-title { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .peek-sub { color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .peek-main { flex: 1; min-width: 0; border: none; background: none; text-align: left; padding: 0; }
+  .peek-sub { display: block; }
+  .peek-cta { flex: none; border: none; background: var(--accent); color: var(--accent-text); border-radius: 999px; padding: 10px 18px; font-weight: 700; font-size: 15px; }
+  .peek-cta.go { background: var(--cta); color: var(--cta-text); }
+  header.top { display: flex; align-items: center; gap: 10px; position: relative; margin: -16px -16px 0; padding: 14px 16px 16px;
+    background: var(--hws-purple); color: #fff; }
+  header.top::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+    background: linear-gradient(90deg, var(--hobart-orange) 0 50%, var(--ws-green) 50% 100%); }
+  header.top .sub { color: rgba(255,255,255,.8); }
+  header.top .icon-btn { color: rgba(255,255,255,.85); border: 1.5px solid rgba(255,255,255,.35); width: 34px; height: 34px; font-size: 16px; }
+  header.top .icon-btn:hover { background: rgba(255,255,255,.12); color: #fff; }
+  .logo { width: 36px; height: 36px; border-radius: 10px; background: #fff; color: var(--hws-purple);
+    display: grid; place-items: center; font-size: 20px; flex: none; }
+  .titles { flex: 1; min-width: 0; }
+  h1 { font-size: 17px; margin: 0; line-height: 1.2; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0; }
+  .icon-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: transparent;
+    display: grid; place-items: center; font-size: 18px; color: var(--muted); flex: none; }
+  .icon-btn:hover { background: var(--soft); color: var(--text); }
+
+  /* from / to */
+  .places { display: grid; grid-template-columns: 20px 1fr 44px; gap: 6px 8px; align-items: center; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--start); justify-self: center; }
+  .dot.end { border-color: var(--end); background: var(--end); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); }
+  .connector { grid-column: 1; justify-self: center; width: 2px; height: 10px;
+    background: repeating-linear-gradient(var(--muted) 0 2px, transparent 2px 5px); margin: -4px 0; }
+  .field { position: relative; }
+  .field input { width: 100%; height: 46px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--soft);
+    padding: 0 40px 0 12px; font-size: 16px; }
+  .field input:focus { background: var(--card); border-color: var(--accent); outline: none; }
+  .field .clear-x { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px;
+    border: none; background: none; border-radius: 50%; color: var(--muted); font-size: 18px; display: none; }
+  .field.has-value .clear-x { display: grid; place-items: center; }
+  .swap { grid-column: 3; grid-row: 1 / span 3; width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--line);
+    background: var(--card); font-size: 18px; color: var(--muted); }
+  .swap:hover { color: var(--text); border-color: var(--muted); }
+  .suggest { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 5; background: var(--card);
+    border-radius: 12px; box-shadow: var(--shadow); list-style: none; margin: 0; padding: 6px; max-height: 320px; overflow-y: auto; }
+  .suggest li { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; cursor: pointer; }
+  .suggest li[aria-selected="true"], .suggest li:hover { background: var(--accent-soft); }
+  .suggest .ic { width: 28px; height: 28px; border-radius: 50%; background: var(--soft); display: grid; place-items: center; font-size: 14px; flex: none; }
+  .suggest .hint-line { font-size: 12px; color: var(--muted); }
+  .suggest .empty { color: var(--muted); cursor: default; }
+
+  /* mode */
+  .mode { display: grid; grid-template-columns: 1fr 1fr; background: var(--soft); border-radius: 12px; padding: 4px; gap: 4px; }
+  .mode button { border: none; background: transparent; border-radius: 9px; height: 44px; font-weight: 600; font-size: 15px;
+    display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); }
+  .mode button[aria-checked="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 14px;
+    display: inline-flex; gap: 6px; align-items: center; min-height: 36px; }
+  .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--text); font-weight: 600; }
+  .chip[aria-pressed="true"]::before { content: "✓"; }
+  .chips[hidden] { display: none; }
+
+  /* empty state */
+  .tips { background: var(--soft); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: var(--muted); }
+  .tips strong { color: var(--text); }
+  .quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .quick button { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 5px 11px; font-size: 13px; }
+
+  /* result */
+  .summary { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .summary .time { font-size: 26px; font-weight: 700; }
+  .summary .dist { color: var(--muted); font-size: 16px; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; border-radius: 999px; padding: 3px 10px; }
+  .badge.good { background: #d9f2e3; color: #00552a; }
+  .badge.bad { background: #fee2e2; color: #7f1d1d; }
+  .notes { display: flex; flex-direction: column; gap: 6px; }
+  .note { border-radius: 10px; padding: 9px 12px; font-size: 14px; display: flex; gap: 8px; }
+  .note.warn { background: var(--warn-bg); color: var(--warn-text); }
+  .note.info { background: var(--info-bg); color: var(--info-text); }
+  .note .n-ic { flex: none; }
+  ol.steps { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  ol.steps li { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; padding: 10px 4px;
+    border-bottom: 1px solid var(--line); cursor: pointer; border-radius: 8px; }
+  ol.steps li:hover, ol.steps li.active { background: var(--accent-soft); }
+  .turn { width: 32px; height: 32px; border-radius: 50%; background: var(--soft); display: grid; place-items: center; font-size: 17px; font-weight: 700; }
+  li.last .turn { background: var(--end); color: #fff; }
+  .s-text { font-size: 15px; }
+  .s-dist { color: var(--muted); font-size: 14px; white-space: nowrap; }
+  .flag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; color: #fff; margin-left: 4px; vertical-align: 1px; }
+  .row { display: flex; gap: 8px; }
+  .btn { border: 1.5px solid var(--line); background: var(--card); border-radius: 10px; padding: 0 14px; min-height: 42px; font-weight: 600; font-size: 14px; }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .btn.start { background: var(--cta); color: var(--cta-text); border-color: var(--cta); flex: 1; font-size: 16px; min-height: 48px; }
+  .btn.start:hover { filter: brightness(1.05); border-color: var(--cta); }
+
+  footer.foot { border-top: 1px solid var(--line); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+  .link-btn { border: none; background: none; color: var(--accent); font-weight: 600; font-size: 14px; padding: 6px 0; }
+
+  /* edit mode */
+  .route-panel { display: contents; }
+  .edit-panel { display: none; }
+  body.editing .route-panel { display: none; }
+  body.editing .edit-panel { display: flex; flex-direction: column; gap: 12px; }
+  .edit-steps { margin: 0; padding-left: 20px; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .legend { display: grid; grid-template-columns: 30px 1fr; gap: 6px 10px; font-size: 14px; align-items: center; }
+  .swatch { height: 6px; border-radius: 3px; }
+  .swatch.dashed { background: repeating-linear-gradient(90deg, var(--rough) 0 6px, transparent 6px 10px) !important; }
+  .stat { background: var(--soft); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .edit-banner { display: none; position: fixed; z-index: 1001; top: 16px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: var(--accent-text); padding: 6px 6px 6px 16px; border-radius: 999px; font-weight: 600; font-size: 14px;
+    box-shadow: var(--shadow); align-items: center; gap: 10px; white-space: nowrap; }
+  .edit-banner button { border: none; background: var(--accent-text); color: var(--accent); border-radius: 999px; padding: 6px 14px; font-weight: 700; }
+  body.editing .edit-banner { display: flex; }
+  body.picking #map { cursor: crosshair; }
+  .pick-banner { display: none; position: fixed; z-index: 1001; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #1b1a22; color: #fff; padding: 10px 10px 10px 18px; border-radius: 999px; font-size: 15px; box-shadow: var(--shadow);
+    align-items: center; gap: 12px; white-space: nowrap; }
+  .pick-banner button { border: none; background: #fff; color: #1b1a22; border-radius: 999px; padding: 6px 14px; font-weight: 700; }
+  body.picking .pick-banner { display: flex; }
+
+  /* map popups and controls */
+  .leaflet-popup-content-wrapper { border-radius: 12px; }
+  .leaflet-popup-content { color: #1b1a22; margin: 12px 14px; font: 14px/1.4 system-ui, -apple-system, sans-serif; }
+  .pop-title { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+  .pop-sub { color: #5c5a6b; font-size: 12px; }
+  .pop-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .pop-btns button { border: 1.5px solid #e2e0ea; background: #fff; color: #1b1a22; border-radius: 8px; padding: 8px 6px; font-weight: 600; font-size: 13px; }
+  .pop-btns button.primary { background: #4f2683; border-color: #4f2683; color: #fff; }
+  .pop-btns button.sel { border-color: #4f2683; background: #eee8f7; }
+  .map-ctl { background: #fff; border: none; border-radius: 10px; box-shadow: 0 1px 5px rgba(0,0,0,.3); width: 44px; height: 44px;
+    display: grid; place-items: center; font-size: 19px; color: #1b1a22; }
+  .leaflet-control-zoom a { width: 44px !important; height: 44px !important; line-height: 44px !important; font-size: 20px !important; }
+  .leaflet-bar { border-radius: 10px !important; border: none !important; box-shadow: 0 1px 5px rgba(0,0,0,.3) !important; }
+  .key-box { background: #fff; color: #1b1a22; border-radius: 10px; box-shadow: 0 1px 5px rgba(0,0,0,.3); padding: 10px 12px; font-size: 13px; }
+  .key-box .legend { font-size: 13px; gap: 4px 8px; }
+  .key-box b { display: block; margin-bottom: 6px; }
+
+  dialog { border: none; border-radius: var(--radius); box-shadow: var(--shadow); background: var(--card); color: var(--text); max-width: 440px; width: calc(100% - 32px); padding: 20px; }
+  dialog::backdrop { background: rgba(10, 8, 20, .45); }
+  dialog h2 { margin: 0 0 10px; font-size: 18px; }
+  dialog ol { padding-left: 20px; margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; }
+
+  /* ---------- live navigation ---------- */
+  .nav-top, .nav-bottom, .recenter { display: none; }
+  body.navigating .card, body.navigating .edit-banner, body.navigating .pick-banner { display: none !important; }
+  body.navigating .nav-top { display: grid; }
+  body.navigating .nav-bottom { display: flex; }
+  body.navigating.free .recenter { display: flex; }
+  body.navigating .leaflet-top { top: 150px; }
+  .nav-top { position: fixed; z-index: 1002; top: 12px; left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 24px));
+    grid-template-columns: 64px 1fr; gap: 12px; align-items: center; padding: 14px 16px 18px; border-radius: 18px;
+    background: var(--hws-purple); color: #fff; box-shadow: var(--shadow); overflow: hidden; }
+  .nav-top::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px;
+    background: linear-gradient(90deg, var(--hobart-orange) 0 50%, var(--ws-green) 50% 100%); }
+  .nav-top.arrived { background: var(--ws-green); }
+  .nav-top.alert { background: #8a1c1c; }
+  .nav-icon { width: 64px; height: 64px; border-radius: 16px; background: rgba(255,255,255,.14); display: grid; place-items: center;
+    font-size: 38px; font-weight: 700; line-height: 1; }
+  .nav-dist { font-size: 28px; font-weight: 800; line-height: 1.1; }
+  .nav-instr { font-size: 18px; line-height: 1.3; }
+  .nav-then { font-size: 13px; opacity: .85; margin-top: 4px; }
+  .nav-then:empty { display: none; }
+  .nav-top .flag { font-size: 12px; }
+  .nav-bottom { position: fixed; z-index: 1002; bottom: 0; left: 50%; transform: translateX(-50%); width: min(460px, 100%);
+    background: var(--card); color: var(--text); box-shadow: var(--shadow); border-radius: 18px 18px 0 0;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); align-items: center; gap: 10px; }
+  .nav-stats { flex: 1; min-width: 0; }
+  .nav-eta { font-size: 22px; font-weight: 800; }
+  .nav-eta .muted { font-weight: 500; font-size: 16px; color: var(--muted); }
+  .nav-sub { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-btn { width: 48px; height: 48px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--card); font-size: 20px; flex: none; }
+  .nav-btn[aria-pressed="false"] { opacity: .55; }
+  .nav-btn.end { width: auto; border-radius: 999px; padding: 0 20px; background: #c62828; border-color: #c62828; color: #fff; font-weight: 700; font-size: 16px; }
+  .recenter { position: fixed; z-index: 1002; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom));
+    border: none; border-radius: 999px; background: var(--card); color: var(--text); box-shadow: var(--shadow);
+    padding: 10px 18px; font-weight: 700; font-size: 15px; align-items: center; gap: 8px; }
+  .me { position: relative; width: 22px; height: 22px; }
+  .me-dot { position: absolute; inset: 0; border-radius: 50%; background: var(--me); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+  .me-arrow { position: absolute; left: 50%; top: 50%; width: 0; height: 0; margin: -26px 0 0 -9px; display: none;
+    border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 16px solid var(--me); transform-origin: 9px 26px; }
+  .sim-tag { position: fixed; z-index: 1003; left: 8px; top: 50%; background: #1b1a22; color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 6px; opacity: .8; }
+
+  /* ---------- phones: bottom sheet ---------- */
+  @media (max-width: 720px) {
+    .card { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 72%; border-radius: 18px 18px 0 0;
+      padding-bottom: env(safe-area-inset-bottom); transition: max-height .25s ease; }
+    .handle { display: flex; justify-content: center; padding: 8px 0 0; border: none; background: none; width: 100%; }
+    .handle span { width: 44px; height: 5px; border-radius: 3px; background: var(--line); }
+    .card-scroll { padding-top: 8px; }
+    .card:not(.collapsed) .handle { background: var(--hws-purple); }
+    .card:not(.collapsed) .handle span { background: rgba(255,255,255,.45); }
+    header.top { margin-top: -8px; padding-top: 6px; }
+    /* three sheet states: normal, peek (route summary only), full (while typing, so the keyboard can't hide suggestions) */
+    .card.collapsed .card-scroll, .card.collapsed .foot { display: none; }
+    .card.collapsed .peek { display: flex; }
+    .card.full { top: 0; max-height: 100%; height: 100%; border-radius: 0; padding-top: env(safe-area-inset-top); }
+    .card.full .foot, .card.full .handle { display: none; }
+    .edit-banner { top: 12px; }
+    .pick-banner { bottom: auto; top: 16px; }
+    .leaflet-top.leaflet-right { top: env(safe-area-inset-top); }
+  }
+  @media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+</style>
+</head>
+<body>
+<div id="map" role="region" aria-label="Campus map"></div>
+
+<section class="card" id="card" aria-label="Directions">
+  <button class="handle" id="handle" aria-label="Expand or collapse panel"><span></span></button>
+  <div class="peek" id="peek">
+    <button class="peek-main" id="peekMain" aria-label="Show the full panel"><span class="peek-title" id="peekTitle"></span><span class="peek-sub" id="peekSub"></span></button>
+    <button class="peek-cta" id="peekCta">Steps ▲</button>
+  </div>
+  <div class="card-scroll">
+    <header class="top">
+      <div class="logo" aria-hidden="true">♿</div>
+      <div class="titles">
+        <h1>Campus Access Routes</h1>
+        <p class="sub">Hobart and William Smith Colleges</p>
+      </div>
+      <button class="icon-btn" id="helpBtn" aria-label="How to use this map" title="How to use">?</button>
+    </header>
+
+    <!-- route planning -->
+    <div class="route-panel">
+      <div class="places">
+        <span class="dot" aria-hidden="true"></span>
+        <div class="field" id="fromField">
+          <label class="sr-only" for="fromInput">Starting point</label>
+          <input id="fromInput" type="text" placeholder="Starting point" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="fromList">
+          <button class="clear-x" type="button" aria-label="Clear starting point">✕</button>
+          <ul class="suggest" id="fromList" role="listbox" hidden></ul>
+        </div>
+        <button class="swap" id="swap" aria-label="Swap start and destination" title="Swap">⇅</button>
+        <span class="connector" aria-hidden="true"></span><span></span>
+        <span class="dot end" aria-hidden="true"></span>
+        <div class="field" id="toField">
+          <label class="sr-only" for="toInput">Destination</label>
+          <input id="toInput" type="text" placeholder="Where to?" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="toList">
+          <button class="clear-x" type="button" aria-label="Clear destination">✕</button>
+          <ul class="suggest" id="toList" role="listbox" hidden></ul>
+        </div>
+      </div>
+
+      <div class="mode" role="radiogroup" aria-label="Route type">
+        <button role="radio" id="modeStepFree" aria-checked="true"><span aria-hidden="true">♿</span> Step-free</button>
+        <button role="radio" id="modeAny" aria-checked="false"><span aria-hidden="true">🚶</span> Shortest</button>
+      </div>
+      <div class="chips" id="prefChips" role="group" aria-label="Step-free preferences">
+        <button class="chip" id="chipSteep" aria-pressed="true">Avoid steep hills</button>
+        <button class="chip" id="chipRough" aria-pressed="false">Avoid gravel &amp; grass</button>
+      </div>
+
+      <div id="result" aria-live="polite"></div>
+    </div>
+
+    <!-- editing -->
+    <div class="edit-panel" aria-label="Improve the map">
+      <h2 style="margin:0;font-size:17px">Help improve the map</h2>
+      <ol class="edit-steps">
+        <li><strong>Tap a path</strong> to mark it as stairs, a steep slope, rough ground, blocked, or checked step-free.</li>
+        <li><strong>Tap next to a building</strong> where its accessible door is to add a ♿ door.</li>
+        <li>Routes update right away. Changes are saved on this device.</li>
+      </ol>
+      <div class="stat" id="editCount"></div>
+      <div class="legend">
+        <span class="swatch" style="background:#77738a"></span><span>Not checked yet</span>
+        <span class="swatch" style="background:var(--ok)"></span><span>Checked: step-free</span>
+        <span class="swatch" style="background:var(--stairs)"></span><span>Stairs</span>
+        <span class="swatch" style="background:var(--steep)"></span><span>Steep slope</span>
+        <span class="swatch dashed"></span><span>Gravel, grass or dirt</span>
+        <span class="swatch" style="background:var(--blocked)"></span><span>Blocked or closed</span>
+      </div>
+      <div class="row">
+        <button class="btn" id="exportBtn">⬇ Save to file</button>
+        <button class="btn" id="importBtn">⬆ Load from file</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" hidden>
+      <button class="btn primary" id="doneEdit">Done</button>
+    </div>
+  </div>
+  <footer class="foot">
+    <span>Map data © OpenStreetMap contributors</span>
+    <button class="link-btn" id="editBtn">✎ Fix the map</button>
+  </footer>
+</section>
+
+<div class="edit-banner" role="status">Editing the map <button id="doneEdit2">Done</button></div>
+<div class="pick-banner" role="status"><span id="pickText">Tap the map to choose a spot</span> <button id="cancelPick">Cancel</button></div>
+
+<div class="nav-top" id="navTop" role="status" aria-live="polite" aria-atomic="true">
+  <div class="nav-icon" id="navIcon" aria-hidden="true">↑</div>
+  <div><div class="nav-dist" id="navDist"></div><div class="nav-instr" id="navInstr"></div><div class="nav-then" id="navThen"></div></div>
+</div>
+<div class="nav-bottom" id="navBottom">
+  <div class="nav-stats"><div class="nav-eta" id="navEta"></div><div class="nav-sub" id="navSub"></div></div>
+  <button class="nav-btn" id="navVoice" aria-pressed="true" aria-label="Spoken directions" title="Spoken directions">🔊</button>
+  <button class="nav-btn end" id="navEnd">End</button>
+</div>
+<button class="recenter" id="recenter">◎ Re-center</button>
+
+<dialog id="help" aria-labelledby="helpTitle">
+  <h2 id="helpTitle">How to use</h2>
+  <ol>
+    <li><strong>Pick where you're going.</strong> Type a building name, or tap a building on the map.</li>
+    <li><strong>Pick where you're starting.</strong> Use your location, a building, or a spot on the map.</li>
+    <li><strong>Step-free</strong> routes avoid stairs (and steep hills, if that's on). <strong>Shortest</strong> is the quickest walk.</li>
+    <li>Tap a direction to zoom to that spot on the map.</li>
+    <li><strong>Start</strong> gives live, spoken turn-by-turn directions that follow you as you move, and finds a new route if you go another way.</li>
+  </ol>
+  <p class="sub" style="margin-bottom:14px">This is a student prototype built on OpenStreetMap, which is missing many of the campus's stairs and accessible doors. Check routes in person, and use “Fix the map” to add what you find.</p>
+  <form method="dialog"><button class="btn primary" style="width:100%">Got it</button></form>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="data/campus-graph.js"></script>
+<script>
+"use strict";
+const C = window.CAMPUS;
+const STORE_KEY = "hwsAccessRoutes.v1";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---------- building names: fix OSM typos, hide non-college businesses, add search words ---------- */
+const RENAME = {
+  "Guilick": "Gulick Hall", "Winn-Sealy Gymnasium": "Winn-Seeley Gymnasium", "Stweardson House": "Stewardson House",
+  "Carr-Macguire House": "Carr-McGuire House", "Sherril Hall and Bookstore": "Sherrill Hall & Bookstore",
+  "DeCordova": "de Cordova Hall", "Caird": "Caird Center", "Chaplain's house": "Chaplain's House",
+};
+const HIDE = new Set(["Arby's", "McDonald's", "Canandaigua National Bank & Trust", "Triana and Triana, D.D.S.",
+  "First Presbyterian Church", "Lacrosse the Nation"]);
+const KEYWORDS = {
+  "Warren Hunting Smith Library": "library books study whs",
+  "Scandling Center": "student center dining saga cafe food mail",
+  "Gearan Center for the Performing Arts": "theater theatre music dance performing arts",
+  "Winn-Seeley Gymnasium": "gym",
+  "Bristol Field House": "gym track field house athletics",
+  "Caird Center": "gym fitness sports recreation",
+  "Campus Safety": "security police help",
+  "Admissions": "visit tours",
+  "Sherrill Hall & Bookstore": "bookstore books",
+  "Bozzuto Boathouse & Dock": "rowing lake boathouse",
+};
+C.buildings = C.buildings.filter(b => !HIDE.has(b.name));
+C.buildings.forEach(b => { b.name = RENAME[b.name] || b.name; b.search = (b.name + " " + (KEYWORDS[b.name] || "")).toLowerCase(); });
+C.buildings.sort((a, b) => a.name.localeCompare(b.name));
+const byId = new Map(C.buildings.map(b => [b.id, b]));
+
+const FLAGS = {
+  ok:      { label: "Step-free", color: "var(--ok)" },
+  stairs:  { label: "Stairs",    color: "var(--stairs)" },
+  steep:   { label: "Steep",     color: "var(--steep)" },
+  rough:   { label: "Rough",     color: "var(--rough)" },
+  blocked: { label: "Blocked",   color: "var(--blocked)" },
+};
+const ROUGH = new Set(["gravel","fine_gravel","grass","dirt","ground","earth","mud","sand","unpaved","woodchips","pebblestone","compacted"]);
+const ROADS = new Set(["residential","service","tertiary","unclassified","living_street"]);
+
+/* ---------- saved edits ---------- */
+let edits = { segments: {}, entrances: [] };
+try { const s = JSON.parse(localStorage.getItem(STORE_KEY)); if (s && s.segments) edits = s; } catch (e) {}
+function saveEdits() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(edits)); } catch (e) {}
+  updateEditCount();
+  if (places.from && places.to) go({ keepView: true });
+}
+
+/* ---------- geometry ---------- */
+const LAT0 = C.nodes[0][0], KX = Math.cos(LAT0 * Math.PI / 180) * 111320, KY = 110540;
+const xy = p => [p[1] * KX, p[0] * KY];
+function dist(a, b) { const dx = (a[1] - b[1]) * KX, dy = (a[0] - b[0]) * KY; return Math.hypot(dx, dy); }
+function bearing(a, b) { return (Math.atan2((b[1] - a[1]) * KX, (b[0] - a[0]) * KY) * 180 / Math.PI + 360) % 360; }
+function distToSeg(p, a, b) {
+  const [px, py] = xy(p), [ax, ay] = xy(a), [bx, by] = xy(b);
+  const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+  const t = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+function inPoly(p, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [yi, xi] = poly[i], [yj, xj] = poly[j];
+    if ((yi > p[0]) !== (yj > p[0]) && p[1] < (xj - xi) * (p[0] - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function distToPoly(p, poly) {
+  if (inPoly(p, poly)) return 0;
+  let d = Infinity;
+  for (let i = 0; i < poly.length - 1; i++) d = Math.min(d, distToSeg(p, poly[i], poly[i + 1]));
+  return d;
+}
+function nearestBuilding(p, maxD) {
+  let best = null, bd = maxD;
+  for (const b of C.buildings) { const d = distToPoly(p, b.outline); if (d < bd) { bd = d; best = b; } }
+  return best;
+}
+
+/* ---------- network ---------- */
+const N = C.nodes;
+const adj = N.map(() => []);
+C.segments.forEach((s, si) => {
+  for (let i = 0; i < s.nodes.length - 1; i++) {
+    const a = s.nodes[i], b = s.nodes[i + 1], len = dist(N[a], N[b]);
+    adj[a].push([b, len, si]); adj[b].push([a, len, si]);
+  }
+});
+const segById = new Map(C.segments.map((s, i) => [s.id, i]));
+
+function segCondition(s) {
+  const f = edits.segments[s.id];
+  if (f) return f;
+  if (s.kind === "steps") return "stairs";
+  if (s.tags.wheelchair === "no") return "stairs";
+  const inc = parseFloat(s.tags.incline);
+  if (!isNaN(inc) && Math.abs(inc) >= 8) return "steep";
+  if (ROUGH.has(s.tags.surface)) return "rough";
+  return "";
+}
+function edgeCost(si, len, opt) {
+  const s = C.segments[si], cond = segCondition(s);
+  if (cond === "blocked") return Infinity;
+  if (!opt.noStairs) return len;
+  if (cond === "stairs") return Infinity;
+  let k = 1;
+  if (cond === "steep") { if (opt.avoidSteep) return Infinity; k *= 4; }
+  if (cond === "rough") { if (opt.avoidRough) return Infinity; k *= 1.6; }
+  if (ROADS.has(s.kind) && cond !== "ok") k *= 1.25;   // prefer dedicated paths over driveways/streets
+  return len * k;
+}
+function nearbyNodes(p, radius, minCount = 3) {
+  const all = [];
+  for (let i = 0; i < N.length; i++) if (adj[i].length) all.push([i, dist(p, N[i])]);
+  all.sort((a, b) => a[1] - b[1]);
+  const within = all.filter(x => x[1] <= radius);
+  return within.length >= minCount ? within.slice(0, 25) : all.slice(0, minCount);
+}
+const bNodes = new Map();
+for (const b of C.buildings) {
+  const near = [];
+  for (let i = 0; i < N.length; i++) {
+    if (!adj[i].length) continue;
+    const d = distToPoly(N[i], b.outline);
+    if (d <= 30) near.push([i, d]);
+  }
+  near.sort((x, y) => x[1] - y[1]);
+  bNodes.set(b.id, near.length ? near.slice(0, 20) : nearbyNodes(b.center, 60, 3));
+}
+function placeEnds(place, opt) {
+  if (place.type === "building") {
+    const doors = edits.entrances.filter(e => e.b === place.b.id);
+    if (doors.length && opt.noStairs) return { ends: doors.map(e => [e.node, 0]), verifiedDoor: true };
+    return { ends: bNodes.get(place.b.id), verifiedDoor: false };
+  }
+  return { ends: nearbyNodes(place.latlng, 25, 2), verifiedDoor: false };
+}
+function route(fromEnds, toEnds, opt) {
+  const best = new Float64Array(N.length).fill(Infinity), prev = new Int32Array(N.length).fill(-1),
+        prevSeg = new Int32Array(N.length).fill(-1), goal = new Map(toEnds.map(([n, d]) => [n, d]));
+  const heap = [];
+  const push = (c, n) => { heap.push([c, n]); let i = heap.length - 1;
+    while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0;
+    for (;;) { const l = 2 * i + 1, r = l + 1; let m = i;
+      if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r;
+      if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  for (const [n, d] of fromEnds) if (d < best[n]) { best[n] = d; push(d, n); }
+  let bestGoal = -1, bestTotal = Infinity;
+  while (heap.length) {
+    const [c, n] = pop();
+    if (c > best[n]) continue;
+    if (c >= bestTotal) break;
+    if (goal.has(n) && c + goal.get(n) < bestTotal) { bestTotal = c + goal.get(n); bestGoal = n; }
+    for (const [m, len, si] of adj[n]) {
+      const nc = c + edgeCost(si, len, opt);
+      if (nc < best[m]) { best[m] = nc; prev[m] = n; prevSeg[m] = si; push(nc, m); }
+    }
+  }
+  if (bestGoal < 0) return null;
+  const path = [], segs = [];
+  for (let n = bestGoal; n >= 0; n = prev[n]) { path.push(n); if (prev[n] >= 0) segs.push(prevSeg[n]); }
+  path.reverse(); segs.reverse();
+  return { path, segs };
+}
+
+/* ---------- directions text ---------- */
+const COMPASS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+const compass = b => COMPASS[Math.round(b / 45) % 8];
+const fmtDist = m => { const ft = m * 3.281; return ft < 1000 ? `${Math.round(ft / 10) * 10 || 10} ft` : `${(ft / 5280).toFixed(1)} mi`; };
+function pathDesc(s) {
+  if (s.name) return s.name;
+  return { steps: "the stairs", footway: "the walkway", path: "the path", pedestrian: "the plaza",
+           service: "the service drive", residential: "the street", track: "the track" }[s.kind] || "the path";
+}
+function landmark(p) { const b = nearestBuilding(p, 35); return b ? ` by ${b.name}` : ""; }
+function turnOf(delta) {
+  const a = Math.abs(delta), right = delta > 0;
+  if (a < 35) return null;
+  if (a < 60) return { word: `Bear ${right ? "right" : "left"}`, icon: right ? "↗" : "↖" };
+  if (a < 135) return { word: `Turn ${right ? "right" : "left"}`, icon: right ? "↱" : "↰" };
+  return { word: `Make a sharp ${right ? "right" : "left"}`, icon: right ? "↷" : "↶" };
+}
+function buildSteps(r, destName) {
+  const steps = [];
+  let cur = null;
+  for (let i = 0; i < r.segs.length; i++) {
+    const a = N[r.path[i]], b = N[r.path[i + 1]], s = C.segments[r.segs[i]], len = dist(a, b), br = bearing(a, b);
+    const cond = segCondition(s);
+    if (cur) {
+      const delta = ((br - cur.endBearing + 540) % 360) - 180;
+      const turn = turnOf(delta);
+      const changedKind = (s.kind === "steps") !== (cur.seg.kind === "steps") || (s.name && s.name !== cur.seg.name);
+      if ((turn || changedKind) && cur.len > 6) {
+        steps.push(cur);
+        cur = { text: `${turn ? turn.word : "Continue"} onto ${pathDesc(s)}${landmark(a)}`, icon: turn ? turn.icon : "↑",
+                len: 0, at: a, atIdx: i, seg: s, conds: new Set() };
+      }
+    } else {
+      cur = { text: `Head ${compass(br)} on ${pathDesc(s)}`, icon: "↑", len: 0, at: a, atIdx: i, seg: s, conds: new Set() };
+    }
+    cur.len += len; cur.endBearing = br; cur.seg = s; if (cond) cur.conds.add(cond);
+  }
+  if (cur) steps.push(cur);
+  steps.push({ text: `Arrive at ${destName}`, icon: "●", len: 0, at: N[r.path[r.path.length - 1]], atIdx: r.path.length - 1, conds: new Set(), last: true });
+  return steps;
+}
+
+/* ---------- map ---------- */
+const isPhone = () => matchMedia("(max-width: 720px)").matches;
+// One shared canvas for every vector layer. A second canvas would stack on top and swallow taps meant for paths and buildings.
+const canvas = L.canvas({ tolerance: 10 });
+const map = L.map("map", { renderer: canvas, zoomControl: false });
+L.control.zoom({ position: "topright" }).addTo(map);
+// Centre on the middle of campus (median building), ignoring outliers like the boathouse.
+const med = k => C.buildings.map(b => b.center[k]).sort((x, y) => x - y)[C.buildings.length >> 1];
+const campusCenter = [med(0), med(1)];
+// Centre a point in the part of the map the card doesn't cover.
+function centerOn(latlng, z, animate = true) {
+  const card = $("card");
+  const off = isPhone() ? L.point(0, card.offsetHeight / 2) : L.point(-(card.offsetWidth + 16) / 2, 0);
+  const target = map.unproject(map.project(latlng, z).add(off), z);
+  if (animate) map.flyTo(target, z, { duration: 0.5 }); else map.setView(target, z, { animate: false });
+}
+function showCampus() { centerOn(campusCenter, isPhone() ? 16 : 17, false); }
+map.setView(campusCenter, 16);
+// Re-centre once layout has settled; measuring during the first paint can see a zero-size map.
+window.addEventListener("load", () => { map.invalidateSize(); if (!(places.from && places.to)) showCampus(); });
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 20, maxNativeZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+}).addTo(map);
+
+function fitOpts() {
+  const card = $("card");
+  if (isPhone()) return { paddingTopLeft: [20, 70], paddingBottomRight: [20, card ? card.offsetHeight + 20 : 260] };
+  return { paddingTopLeft: [(card ? card.offsetWidth : 390) + 40, 30], paddingBottomRight: [70, 30] };
+}
+
+const css = getComputedStyle(document.documentElement);
+const colorOf = v => v.startsWith("var(") ? css.getPropertyValue(v.slice(4, -1)).trim() : v;
+function segStyle(s) {
+  const cond = segCondition(s);
+  if (cond) return { color: colorOf(FLAGS[cond].color), weight: cond === "ok" ? 4 : 5, opacity: 0.95,
+                     dashArray: cond === "rough" ? "6 5" : cond === "blocked" ? "2 6" : null };
+  return ROADS.has(s.kind) ? { color: "#9a97a8", weight: 2, opacity: 0.6, dashArray: null }
+                           : { color: "#77738a", weight: 3, opacity: 0.8, dashArray: null };
+}
+
+const BUILDING_STYLE = { color: "#6b5a8e", weight: 1.2, fillColor: "#7d6aa3", fillOpacity: 0.16 };
+const buildingLayers = new Map();
+C.buildings.forEach(b => {
+  const poly = L.polygon(b.outline, { ...BUILDING_STYLE, renderer: canvas })
+    .bindTooltip(b.name, { sticky: true, direction: "top", offset: [0, -6] }).addTo(map);
+  poly.on("click", e => {
+    if (editing) return;                         // let the map handler offer "add door"
+    L.DomEvent.stop(e);
+    if (picking) return choose(picking, { type: "building", b, name: b.name });
+    openBuildingPopup(b, e.latlng);
+  });
+  buildingLayers.set(b.id, poly);
+});
+function highlightBuildings() {
+  buildingLayers.forEach((poly, id) => {
+    const isFrom = places.from && places.from.b && places.from.b.id === id, isTo = places.to && places.to.b && places.to.b.id === id;
+    poly.setStyle(isTo ? { color: colorOf("var(--end)"), fillColor: colorOf("var(--end)"), fillOpacity: 0.25, weight: 2.5 }
+               : isFrom ? { color: colorOf("var(--start)"), fillColor: colorOf("var(--start)"), fillOpacity: 0.25, weight: 2.5 }
+               : BUILDING_STYLE);
+  });
+}
+function openBuildingPopup(b, latlng) {
+  const doors = edits.entrances.filter(e => e.b === b.id).length;
+  const div = document.createElement("div");
+  div.innerHTML = `<div class="pop-title">${esc(b.name)}</div>
+    <div class="pop-sub">${doors ? `♿ ${doors} accessible door${doors > 1 ? "s" : ""} marked` : "No accessible door marked yet"}</div>
+    <div class="pop-btns"><button data-w="from">Start here</button><button class="primary" data-w="to">Go here</button></div>`;
+  div.querySelectorAll("button").forEach(btn => btn.onclick = () => {
+    map.closePopup(); choose(btn.dataset.w, { type: "building", b, name: b.name });
+  });
+  L.popup({ closeButton: true }).setLatLng(latlng).setContent(div).openOn(map);
+}
+
+const segLayers = C.segments.map(s =>
+  L.polyline(s.nodes.map(n => N[n]), { ...segStyle(s), renderer: canvas, interactive: false }).addTo(map)
+    .on("click", e => { if (editing) { L.DomEvent.stop(e); openSegEditor(s, e.latlng); } }));
+function restyle(si) { segLayers[si].setStyle(segStyle(C.segments[si])); }
+
+const doorLayer = L.layerGroup().addTo(map);
+const doorIcon = L.divIcon({ className: "", iconSize: [28, 28],
+  html: '<div style="font-size:16px;background:#4f2683;color:#fff;border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:grid;place-items:center;box-shadow:0 1px 4px #0007">♿</div>' });
+function drawDoors() {
+  doorLayer.clearLayers();
+  edits.entrances.forEach((e, i) => {
+    const b = byId.get(e.b);
+    L.marker([e.lat, e.lon], { icon: doorIcon, title: `Accessible door${b ? ": " + b.name : ""}` })
+      .bindPopup(() => {
+        const div = document.createElement("div");
+        div.innerHTML = `<div class="pop-title">Accessible door</div><div class="pop-sub">${esc(b ? b.name : "")}</div>
+          <div class="pop-btns"><button>Remove</button><button class="primary">Go here</button></div>`;
+        const [rm, goBtn] = div.querySelectorAll("button");
+        rm.onclick = () => { edits.entrances.splice(i, 1); saveEdits(); drawDoors(); map.closePopup(); };
+        goBtn.onclick = () => { map.closePopup(); if (b) choose("to", { type: "building", b, name: b.name }); };
+        return div;
+      }).addTo(doorLayer);
+  });
+}
+drawDoors();
+
+/* map key + locate controls */
+const KeyCtl = L.Control.extend({ options: { position: "topright" }, onAdd() {
+  const wrap = L.DomUtil.create("div");
+  wrap.innerHTML = `<button class="map-ctl" aria-expanded="false" aria-label="Show map key" title="Map key">🗺</button>
+    <div class="key-box" hidden><b>Map key</b><div class="legend">
+      <span class="swatch" style="background:#4f2683;height:7px"></span><span>Your route</span>
+      <span class="swatch" style="background:#77738a"></span><span>Path (not checked)</span>
+      <span style="text-align:center;color:#1a73e8">●</span><span>You</span>
+      <span class="swatch" style="background:${colorOf("var(--ok)")}"></span><span>Checked step-free</span>
+      <span class="swatch" style="background:${colorOf("var(--stairs)")}"></span><span>Stairs</span>
+      <span class="swatch" style="background:${colorOf("var(--steep)")}"></span><span>Steep</span>
+      <span class="swatch dashed"></span><span>Rough surface</span>
+      <span style="text-align:center">♿</span><span>Accessible door</span></div></div>`;
+  const btn = wrap.querySelector("button"), box = wrap.querySelector(".key-box");
+  btn.onclick = () => { box.hidden = !box.hidden; btn.hidden = !box.hidden; btn.setAttribute("aria-expanded", !box.hidden); };
+  box.onclick = () => { box.hidden = true; btn.hidden = false; btn.focus(); };
+  L.DomEvent.disableClickPropagation(wrap);
+  return wrap;
+} });
+new KeyCtl().addTo(map);
+const LocateCtl = L.Control.extend({ options: { position: "topright" }, onAdd() {
+  const b = L.DomUtil.create("button", "map-ctl");
+  b.innerHTML = "◎"; b.title = "Show my location"; b.setAttribute("aria-label", "Show my location");
+  L.DomEvent.disableClickPropagation(b);
+  b.onclick = () => locate(p => map.setView(p, 18));   // also starts the live blue dot
+  return b;
+} });
+new LocateCtl().addTo(map);
+
+/* ---------- live position ----------
+   Location is only requested after the person taps something that needs it (locate, "Your location", Start).
+   Add ?simulate to the page address to fake a walk along the current route for testing at a desk. */
+const SIM = new URLSearchParams(location.search).has("simulate");
+const sim = { timer: null, along: 0, off: 0, speed: 1.4 * 3 };   // walks 3x real speed
+function simFix() {
+  const R = currentRoute;
+  if (!R) return { p: campusCenter, acc: 8, heading: null };
+  const a = Math.min(sim.along, R.total);
+  let i = 0; while (i < R.cum.length - 2 && R.cum[i + 1] < a) i++;
+  const A = R.line[i], B = R.line[i + 1], seg = R.cum[i + 1] - R.cum[i] || 1, t = (a - R.cum[i]) / seg;
+  let p = [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t];
+  if (sim.off) p = [p[0] + sim.off / KY, p[1]];                   // push north, to test leaving the route
+  return { p, acc: 6, heading: bearing(A, B) };
+}
+const geo = {
+  watch(onFix, onErr) {
+    if (SIM) { clearInterval(sim.timer); sim.timer = setInterval(() => { sim.along += sim.speed; onFix(simFix()); }, 1000); onFix(simFix()); return "sim"; }
+    if (!navigator.geolocation) { onErr && onErr({ code: 0 }); return null; }
+    return navigator.geolocation.watchPosition(pos => onFix(toFix(pos)), err => onErr && onErr(err),
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+  },
+  clear(id) { if (id === "sim") clearInterval(sim.timer); else if (id != null && navigator.geolocation) navigator.geolocation.clearWatch(id); },
+  once(onFix, onErr) {
+    if (SIM) return setTimeout(() => onFix(simFix()), 50);
+    if (!navigator.geolocation) return onErr && onErr({ code: 0 });
+    navigator.geolocation.getCurrentPosition(pos => onFix(toFix(pos)), err => onErr && onErr(err), { enableHighAccuracy: true, timeout: 12000 });
+  },
+};
+function toFix(pos) {
+  const c = pos.coords;
+  return { p: [c.latitude, c.longitude], acc: c.accuracy, heading: (c.heading != null && !isNaN(c.heading) && c.speed > 0.3) ? c.heading : null };
+}
+function geoErrorText(err) {
+  if (!window.isSecureContext && location.hostname !== "localhost") return "Location needs a secure (https) address. Open this page over https.";
+  if (err && err.code === 1) return "Location access is turned off for this page. Allow it in your browser settings.";
+  if (err && err.code === 0) return "This browser can't share its location.";
+  return "Couldn't get your location yet. Try again outside, away from tall buildings.";
+}
+
+let me = null, meAcc = null, lastFix = null, bgWatch = null;
+const meIcon = L.divIcon({ className: "", iconSize: [22, 22], iconAnchor: [11, 11], html: '<div class="me"><div class="me-arrow"></div><div class="me-dot"></div></div>' });
+function showMe(fix) {
+  if (lastFix && fix.heading == null && dist(lastFix.p, fix.p) > 3) fix.heading = bearing(lastFix.p, fix.p);
+  lastFix = fix;
+  if (!me) {
+    meAcc = L.circle(fix.p, { radius: fix.acc || 10, color: colorOf("var(--me)"), weight: 1, fillColor: colorOf("var(--me)"), fillOpacity: 0.12, interactive: false }).addTo(map);
+    me = L.marker(fix.p, { icon: meIcon, interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(map);
+  } else { me.setLatLng(fix.p); meAcc.setLatLng(fix.p).setRadius(fix.acc || 10); }
+  const arrow = me.getElement() && me.getElement().querySelector(".me-arrow");
+  if (arrow) { arrow.style.display = fix.heading == null ? "none" : "block"; if (fix.heading != null) arrow.style.transform = `rotate(${fix.heading}deg)`; }
+}
+function startBgWatch() { if (bgWatch == null && !SIM) bgWatch = geo.watch(showMe, () => {}); }
+function locate(onFix, onFail) {
+  geo.once(fix => { showMe(fix); startBgWatch(); onFix(fix.p); },
+           err => { onFail && onFail(); toast(geoErrorText(err)); });
+}
+if (SIM) document.body.insertAdjacentHTML("beforeend", '<div class="sim-tag">Simulated location</div>');
+function toast(msg) { setSheet("normal"); showResult(`<div class="notes"><div class="note warn"><span class="n-ic">⚠</span><span>${esc(msg)}</span></div></div>`); }
+
+/* ---------- choosing places ---------- */
+const places = { from: null, to: null };
+const inputs = { from: $("fromInput"), to: $("toInput") };
+const lists = { from: $("fromList"), to: $("toList") };
+let picking = null;
+
+function choose(which, place) {
+  places[which] = place;
+  inputs[which].value = place ? place.name : "";
+  inputs[which].parentElement.classList.toggle("has-value", !!place);
+  closeList(which);
+  stopPicking();
+  highlightBuildings();
+  writeHash();
+  if (places.from && places.to) go();
+  else {
+    clearRoute();
+    renderEmpty();
+    setSheet("normal");
+    if (place && place.type === "building") centerOn(place.b.center, Math.max(map.getZoom(), 17));
+    const other = which === "from" ? "to" : "from";
+    if (place && !places[other] && !isPhone()) inputs[other].focus();
+  }
+}
+function startPicking(which) {
+  picking = which;
+  document.body.classList.add("picking");
+  $("pickText").textContent = `Tap the map to set your ${which === "from" ? "starting point" : "destination"}`;
+  closeList(which); inputs[which].blur();
+  setSheet("peek");
+}
+function stopPicking() { picking = null; document.body.classList.remove("picking"); updatePeek(); }
+$("cancelPick").onclick = stopPicking;
+
+function suggestions(which, q) {
+  q = q.trim().toLowerCase();
+  const items = [];
+  if (!q) {
+    items.push({ kind: "gps", icon: "◎", label: "Your location", hint: "Use GPS" });
+    items.push({ kind: "pick", icon: "📌", label: "Choose on map", hint: "Tap any spot" });
+  }
+  const words = q.split(/\s+/).filter(Boolean);
+  const scored = C.buildings.map(b => {
+    if (!words.every(w => b.search.includes(w))) return null;
+    const n = b.name.toLowerCase();
+    const score = !q ? 0 : n.startsWith(q) ? 0 : n.split(/\s+/).some(w => w.startsWith(words[0])) ? 1 : 2;
+    return [score, b];
+  }).filter(Boolean).sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name));
+  scored.slice(0, q ? 8 : 60).forEach(([, b]) => items.push({ kind: "building", icon: "🏛", label: b.name, b,
+    hint: edits.entrances.some(e => e.b === b.id) ? "♿ accessible door marked" : "" }));
+  return items;
+}
+function renderList(which) {
+  const list = lists[which], items = suggestions(which, inputs[which].value);
+  list._items = items; list._active = -1;
+  list.innerHTML = items.length ? items.map((it, i) => `<li role="option" id="${which}-opt-${i}" aria-selected="false" data-i="${i}">
+      <span class="ic" aria-hidden="true">${it.icon}</span><span><div>${esc(it.label)}</div>${it.hint ? `<div class="hint-line">${esc(it.hint)}</div>` : ""}</span></li>`).join("")
+    : `<li class="empty" role="option" aria-disabled="true">No building matches “${esc(inputs[which].value)}”</li>`;
+  list.hidden = false; inputs[which].setAttribute("aria-expanded", "true");
+  list.querySelectorAll("li[data-i]").forEach(li => li.onmousedown = e => { e.preventDefault(); pickItem(which, items[+li.dataset.i]); });
+}
+function closeList(which) { lists[which].hidden = true; inputs[which].setAttribute("aria-expanded", "false"); inputs[which].removeAttribute("aria-activedescendant"); }
+function pickItem(which, it) {
+  if (!it) return;
+  if (it.kind === "building") return choose(which, { type: "building", b: it.b, name: it.b.name });
+  if (it.kind === "pick") return startPicking(which);
+  if (it.kind === "gps") {
+    closeList(which);
+    inputs[which].value = "Finding your location…";
+    locate(p => choose(which, { type: "point", latlng: p, name: "Your location" }),
+           () => { inputs[which].value = ""; });
+  }
+}
+for (const which of ["from", "to"]) {
+  const inp = inputs[which], list = lists[which];
+  inp.addEventListener("focus", () => { inp.select(); renderList(which); setSheet("full"); });
+  inp.addEventListener("input", () => { inp.parentElement.classList.toggle("has-value", !!inp.value); renderList(which); });
+  inp.addEventListener("blur", () => setTimeout(() => {
+    closeList(which);
+    if (places[which] && inp.value !== places[which].name) inp.value = places[which].name;   // restore after an abandoned edit
+    const other = inputs[which === "from" ? "to" : "from"];
+    if ($("card").classList.contains("full") && document.activeElement !== other) setSheet(places.from && places.to ? "peek" : "normal");
+  }, 120));
+  inp.addEventListener("keydown", e => {
+    const items = list._items || [];
+    const move = d => {
+      if (list.hidden) renderList(which);
+      list._active = (list._active + d + items.length) % items.length;
+      list.querySelectorAll("li").forEach((li, i) => li.setAttribute("aria-selected", i === list._active));
+      const li = list.querySelector(`#${which}-opt-${list._active}`);
+      if (li) { li.scrollIntoView({ block: "nearest" }); inp.setAttribute("aria-activedescendant", li.id); }
+    };
+    if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      const it = items[list._active >= 0 ? list._active : items.findIndex(x => x.kind === "building")];
+      pickItem(which, it);
+    } else if (e.key === "Escape") { closeList(which); }
+  });
+  inp.parentElement.querySelector(".clear-x").onclick = () => { choose(which, null); inp.focus(); };
+}
+$("swap").onclick = () => {
+  const f = places.from; places.from = places.to; places.to = f;
+  for (const w of ["from", "to"]) { inputs[w].value = places[w] ? places[w].name : ""; inputs[w].parentElement.classList.toggle("has-value", !!places[w]); }
+  highlightBuildings(); writeHash();
+  if (places.from && places.to) go();
+};
+
+/* ---------- options ---------- */
+const opts = { noStairs: true, avoidSteep: true, avoidRough: false };
+function setMode(stepFree) {
+  opts.noStairs = stepFree;
+  $("modeStepFree").setAttribute("aria-checked", stepFree);
+  $("modeAny").setAttribute("aria-checked", !stepFree);
+  $("prefChips").hidden = !stepFree;
+  writeHash();
+  if (places.from && places.to) go({ keepView: true });
+}
+$("modeStepFree").onclick = () => setMode(true);
+$("modeAny").onclick = () => setMode(false);
+document.querySelector(".mode").addEventListener("keydown", e => {
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+    e.preventDefault(); setMode(!opts.noStairs); (opts.noStairs ? $("modeStepFree") : $("modeAny")).focus();
+  }
+});
+for (const [id, key] of [["chipSteep", "avoidSteep"], ["chipRough", "avoidRough"]]) {
+  $(id).onclick = () => {
+    opts[key] = !opts[key]; $(id).setAttribute("aria-pressed", opts[key]);
+    if (places.from && places.to) go({ keepView: true });
+  };
+}
+
+/* ---------- route + results ---------- */
+const routeLayer = L.layerGroup().addTo(map);
+let stepMarker = null, currentSteps = [], currentRoute = null;
+function showResult(html) { $("result").innerHTML = html; }
+function clearRoute() { routeLayer.clearLayers(); stepMarker = null; currentSteps = []; currentRoute = null; lastSummary = null; }
+
+function renderEmpty() {
+  if (places.from && places.to) return;
+  const popular = ["Warren Hunting Smith Library", "Scandling Center", "Gearan Center for the Performing Arts", "Bristol Field House"]
+    .map(n => C.buildings.find(b => b.name === n)).filter(Boolean);
+  const need = !places.to ? "where you're going" : "where you're starting";
+  showResult(`<div class="tips"><strong>Choose ${need}.</strong> Type a building name, or tap a building on the map.
+    ${!places.to ? `<div class="quick">${popular.map(b => `<button data-b="${b.id}">${esc(b.name.replace(" for the Performing Arts", ""))}</button>`).join("")}</div>` : ""}</div>`);
+  $("result").querySelectorAll("[data-b]").forEach(btn => btn.onclick = () => {
+    const b = byId.get(btn.dataset.b); choose("to", { type: "building", b, name: b.name });
+  });
+}
+
+function go({ keepView = false, instant = false } = {}) {
+  const from = places.from, to = places.to;
+  if (!from || !to) return renderEmpty();
+  const A = placeEnds(from, opts), B = placeEnds(to, opts);
+  const r = route(A.ends, B.ends, opts);
+  clearRoute();
+  if (!r) {
+    const tried = [opts.avoidSteep && "steep hills", opts.avoidRough && "gravel & grass"].filter(Boolean);
+    return showResult(`<div class="notes"><div class="note warn"><span class="n-ic">⚠</span><span><strong>No ${opts.noStairs ? "step-free " : ""}route found.</strong>
+      ${tried.length ? `Try allowing ${tried.join(" or ")}.` : "A path on the way may be marked as stairs or blocked."}</span></div></div>`);
+  }
+  const line = r.path.map(n => N[n]);
+  L.polyline(line, { color: "#ffffff", weight: 11, opacity: 0.95, renderer: canvas, interactive: false }).addTo(routeLayer);
+  L.polyline(line, { color: colorOf("var(--route)"), weight: 7, renderer: canvas, interactive: false }).addTo(routeLayer);
+  r.segs.forEach((si, i) => {             // paint problem spots on top of the route
+    const c = segCondition(C.segments[si]);
+    if (c && c !== "ok") L.polyline([N[r.path[i]], N[r.path[i + 1]]], { color: colorOf(FLAGS[c].color), weight: 7, renderer: canvas, interactive: false }).addTo(routeLayer);
+  });
+  L.circleMarker(line[0], { radius: 9, color: "#fff", weight: 3, fillColor: colorOf("var(--start)"), fillOpacity: 1 }).addTo(routeLayer).bindTooltip("Start: " + from.name);
+  L.circleMarker(line[line.length - 1], { radius: 9, color: "#fff", weight: 3, fillColor: colorOf("var(--end)"), fillOpacity: 1 }).addTo(routeLayer).bindTooltip(to.name);
+  if (!keepView) setSheet("peek");
+  if (instant) map.fitBounds(L.latLngBounds(line), { ...fitOpts(), maxZoom: 19, animate: false });
+  else if (!keepView) map.flyToBounds(L.latLngBounds(line), { ...fitOpts(), duration: 0.7, maxZoom: 19 });
+
+  let total = 0; for (let i = 0; i < line.length - 1; i++) total += dist(line[i], line[i + 1]);
+  const speed = opts.noStairs ? 1.0 : 1.3;            // m/s: manual wheelchair vs typical walk
+  const mins = Math.max(1, Math.round(total / speed / 60));
+  currentSteps = buildSteps(r, to.name);
+  const cum = [0]; for (let i = 1; i < line.length; i++) cum.push(cum[i - 1] + dist(line[i - 1], line[i]));
+  currentSteps.forEach(st => { st.along = cum[st.atIdx]; });
+  currentRoute = { line, cum, total, speed, to, steps: currentSteps };
+  const conds = new Set(r.segs.map(si => segCondition(C.segments[si])).filter(Boolean));
+  const checkedLen = r.segs.reduce((t, si, i) => t + (segCondition(C.segments[si]) ? dist(N[r.path[i]], N[r.path[i + 1]]) : 0), 0);
+
+  const warns = [], infos = [];
+  if (!opts.noStairs && conds.has("stairs")) warns.push("This route uses <strong>stairs</strong>. Switch to Step-free to avoid them.");
+  if (opts.noStairs && conds.has("steep")) warns.push("Includes a <strong>steep section</strong>. No flatter way was found.");
+  if (opts.noStairs && conds.has("rough")) warns.push("Crosses <strong>gravel, grass or dirt</strong>.");
+  if (opts.noStairs && to.type === "building" && !B.verifiedDoor) infos.push(`No accessible door marked for ${esc(to.name)} yet, so the route ends at the nearest path.`);
+  if (opts.noStairs && checkedLen < total * 0.95) infos.push(`Not checked in person yet. The map may be missing stairs or curbs. <button class="link-btn" data-act="edit" style="padding:0">Fix the map</button>`);
+
+  const good = opts.noStairs && !conds.has("stairs");
+  lastSummary = { title: `${mins} min <span style="font-weight:400;font-size:15px;color:var(--muted)">${fmtDist(total)}</span>${good ? ` <span class="badge good">♿ Step-free</span>` : conds.has("stairs") ? ` <span class="badge bad">Has stairs</span>` : ""}`,
+                  sub: `to ${to.name}` };
+  updatePeek();
+  showResult(`
+    <div class="summary"><span class="time">${mins} min</span><span class="dist">${fmtDist(total)}</span>
+      ${good ? `<span class="badge good">♿ Step-free</span>` : conds.has("stairs") ? `<span class="badge bad">Has stairs</span>` : ""}</div>
+    <div class="row"><button class="btn start" id="startNav">▶ Start live directions</button><button class="btn" id="clearBtn">✕ Clear</button></div>
+    ${warns.length || infos.length ? `<div class="notes">
+      ${warns.map(w => `<div class="note warn"><span class="n-ic" aria-hidden="true">⚠</span><span>${w}</span></div>`).join("")}
+      ${infos.map(w => `<div class="note info"><span class="n-ic" aria-hidden="true">ℹ</span><span>${w}</span></div>`).join("")}</div>` : ""}
+    <ol class="steps" aria-label="Directions">${currentSteps.map((s, i) => `
+      <li data-i="${i}" tabindex="0" class="${s.last ? "last" : ""}">
+        <span class="turn" aria-hidden="true">${s.icon}</span>
+        <span class="s-text">${esc(s.text)}${[...s.conds].filter(c => c !== "ok").map(c =>
+          `<span class="flag" style="background:${colorOf(FLAGS[c].color)}">${FLAGS[c].label}</span>`).join("")}</span>
+        <span class="s-dist">${s.len ? fmtDist(s.len) : ""}</span></li>`).join("")}</ol>
+`);
+  $("startNav").onclick = startNav;
+  $("result").querySelectorAll("ol.steps li").forEach(li => {
+    const jump = () => focusStep(+li.dataset.i);
+    li.onclick = jump; li.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jump(); } };
+  });
+  const editLink = $("result").querySelector('[data-act="edit"]'); if (editLink) editLink.onclick = () => setEditing(true);
+  $("clearBtn").onclick = () => { places.from = places.to = null; for (const w of ["from", "to"]) { inputs[w].value = ""; inputs[w].parentElement.classList.remove("has-value"); }
+    clearRoute(); highlightBuildings(); writeHash(); renderEmpty(); inputs.to.focus(); };
+}
+function focusStep(i) {
+  const s = currentSteps[i]; if (!s) return;
+  $("result").querySelectorAll("ol.steps li").forEach(li => li.classList.toggle("active", +li.dataset.i === i));
+  if (stepMarker) routeLayer.removeLayer(stepMarker);
+  stepMarker = L.circleMarker(s.at, { radius: 13, color: colorOf("var(--hobart-orange)"), weight: 4, fillColor: "#fff", fillOpacity: 0.6, interactive: false }).addTo(routeLayer);
+  setSheet("peek");
+  centerOn(s.at, 19);
+}
+
+/* ---------- editing ---------- */
+let editing = false;
+function setEditing(on) {
+  editing = on;
+  document.body.classList.toggle("editing", on);
+  stopPicking(); map.closePopup();
+  // Paths only take taps while editing, so taps on buildings are not stolen by the walkways inside them.
+  segLayers.forEach((l, i) => { l.options.interactive = on; l.setStyle({ weight: segStyle(C.segments[i]).weight + (on ? 2 : 0) }); });
+  if (on) updateEditCount();
+  setSheet(on ? "peek" : (places.from && places.to ? "peek" : "normal"));
+}
+$("editBtn").onclick = () => setEditing(!editing);
+$("doneEdit").onclick = $("doneEdit2").onclick = () => setEditing(false);
+function openSegEditor(s, latlng) {
+  const si = segById.get(s.id), cur = segCondition(s);
+  const len = s.nodes.slice(1).reduce((t, n, i) => t + dist(N[s.nodes[i]], N[n]), 0);
+  const name = pathDesc(s).replace(/^the /, "").replace(/^./, c => c.toUpperCase());
+  const div = document.createElement("div");
+  div.innerHTML = `<div class="pop-title">${esc(name)}</div><div class="pop-sub">${fmtDist(len)} · ${cur ? "Marked: " + FLAGS[cur].label : "Not checked yet"}</div>
+    <div class="pop-btns">${Object.entries(FLAGS).map(([k, f]) => `<button data-f="${k}" class="${cur === k ? "sel" : ""}">${f.label}</button>`).join("")}
+    <button data-f="">Clear mark</button></div>`;
+  div.querySelectorAll("button").forEach(btn => btn.onclick = () => {
+    if (btn.dataset.f) edits.segments[s.id] = btn.dataset.f; else delete edits.segments[s.id];
+    restyle(si); segLayers[si].setStyle({ weight: segStyle(s).weight + 2 }); saveEdits(); map.closePopup();
+  });
+  L.popup().setLatLng(latlng).setContent(div).openOn(map);
+}
+map.on("click", e => {
+  const p = [e.latlng.lat, e.latlng.lng];
+  if (editing) {
+    const b = nearestBuilding(p, 25);
+    if (!b) return;
+    const div = document.createElement("div");
+    div.innerHTML = `<div class="pop-title">${esc(b.name)}</div><div class="pop-sub">Is there an accessible door here?</div>
+      <div class="pop-btns"><button>Cancel</button><button class="primary">♿ Add door</button></div>`;
+    const [cancel, add] = div.querySelectorAll("button");
+    cancel.onclick = () => map.closePopup();
+    add.onclick = () => {
+      const [node] = nearbyNodes(p, 40, 1)[0];
+      edits.entrances.push({ b: b.id, lat: p[0], lon: p[1], node });
+      saveEdits(); drawDoors(); map.closePopup();
+    };
+    L.popup().setLatLng(e.latlng).setContent(div).openOn(map);
+  } else if (picking) {
+    const b = nearestBuilding(p, 0.1);
+    choose(picking, b ? { type: "building", b, name: b.name } : { type: "point", latlng: p, name: "Spot on map" });
+  }
+});
+function updateEditCount() {
+  const n = Object.keys(edits.segments).length, d = edits.entrances.length;
+  $("editCount").textContent = `You've marked ${n} path${n === 1 ? "" : "s"} and ${d} accessible door${d === 1 ? "" : "s"}.`;
+}
+$("exportBtn").onclick = () => {
+  const blob = new Blob([JSON.stringify(edits, null, 1)], { type: "application/json" });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "campus-access-edits.json" });
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("importBtn").onclick = () => $("importFile").click();
+$("importFile").onchange = async ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!d.segments || !Array.isArray(d.entrances)) throw new Error("this isn't a map-edits file");
+    Object.assign(edits.segments, d.segments);
+    edits.entrances.push(...d.entrances);
+    saveEdits(); C.segments.forEach((_, i) => restyle(i)); drawDoors();
+    $("editCount").textContent += " (file loaded)";
+  } catch (err) { $("editCount").textContent = "Couldn't load that file: " + err.message; }
+  ev.target.value = "";
+};
+
+/* ---------- live turn-by-turn navigation ---------- */
+const nav = { on: false, watchId: null, follow: true, offCount: 0, lastReroute: 0, stepK: -1, nearSpoken: -1, arrived: false, wake: null,
+              voice: (() => { try { return localStorage.getItem(STORE_KEY + ".voice") !== "off"; } catch (e) { return true; } })() };
+const sayDist = m => fmtDist(m).replace(" ft", " feet").replace(" mi", " miles");
+function speak(text) {
+  if (!nav.voice || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance(text), { rate: 1, lang: "en-US" }));
+}
+async function keepAwake() { try { if ("wakeLock" in navigator && !nav.wake) { nav.wake = await navigator.wakeLock.request("screen"); nav.wake.addEventListener("release", () => { nav.wake = null; }); } } catch (e) {} }
+document.addEventListener("visibilitychange", () => { if (nav.on && document.visibilityState === "visible") keepAwake(); });
+
+/* Where along the route is this point, and how far off it? */
+function projectOnRoute(p) {
+  const R = currentRoute, [px, py] = xy(p);
+  let best = { off: Infinity, along: 0 };
+  for (let i = 0; i < R.line.length - 1; i++) {
+    const [ax, ay] = xy(R.line[i]), [bx, by] = xy(R.line[i + 1]);
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+    const t = L2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L2)) : 0;
+    const off = Math.hypot(px - ax - t * dx, py - ay - t * dy);
+    if (off < best.off) best = { off, along: R.cum[i] + t * (R.cum[i + 1] - R.cum[i]) };
+  }
+  return best;
+}
+function setBanner({ icon, dist: d, instr, then = "", cls = "" }) {
+  $("navIcon").textContent = icon; $("navDist").textContent = d; $("navInstr").innerHTML = instr; $("navThen").innerHTML = then;
+  $("navTop").className = "nav-top" + (cls ? " " + cls : "");
+}
+const flagsHtml = st => [...st.conds].filter(c => c !== "ok").map(c => ` <span class="flag" style="background:${colorOf(FLAGS[c].color)}">${FLAGS[c].label}</span>`).join("");
+const spokenStep = st => st.text.replace(/^Head (\w+) on/, "Head $1 along").replace(" by ", " near ");
+
+function startNav() {
+  if (!currentRoute) return;
+  const begin = fix => {
+    if (!SIM && dist(fix.p, campusCenter) > 2500) {
+      return toast(`Live directions work on campus. You're about ${fmtDist(dist(fix.p, campusCenter))} away right now.`);
+    }
+    showMe(fix);
+    // Start from where the person actually is, unless they're already at the route's start.
+    if (!SIM && dist(fix.p, currentRoute.line[0]) > 30) {
+      places.from = { type: "point", latlng: fix.p, name: "Your location" };
+      inputs.from.value = "Your location"; inputs.from.parentElement.classList.add("has-value");
+      go({ keepView: true });
+      if (!currentRoute) return;
+    }
+    enterNav(fix);
+  };
+  geo.once(begin, err => toast(geoErrorText(err)));
+}
+function enterNav(fix) {
+  Object.assign(nav, { on: true, follow: true, offCount: 0, stepK: -1, nearSpoken: -1, arrived: false });
+  document.body.classList.add("navigating"); document.body.classList.remove("free");
+  map.closePopup(); keepAwake();
+  if (bgWatch != null) { geo.clear(bgWatch); bgWatch = null; }
+  if (SIM) sim.along = 0;
+  map.setView(fix.p, 19, { animate: false });
+  speak(`Starting ${opts.noStairs ? "step-free " : ""}directions to ${currentRoute.to.name}.`);
+  nav.watchId = geo.watch(onNavFix, err => {
+    setBanner({ icon: "⚠", dist: "No GPS", instr: esc(geoErrorText(err)), cls: "alert" });
+  });
+}
+function endNav() {
+  geo.clear(nav.watchId); nav.watchId = null; nav.on = false;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if (nav.wake) { nav.wake.release().catch(() => {}); nav.wake = null; }
+  document.body.classList.remove("navigating", "free");
+  startBgWatch();
+  if (currentRoute) { setSheet("peek"); map.fitBounds(L.latLngBounds(currentRoute.line), { ...fitOpts(), maxZoom: 19 }); }
+}
+function onNavFix(fix) {
+  if (!nav.on) return;
+  showMe(fix);
+  if (nav.follow) map.panTo(fix.p, { animate: true, duration: 0.5 });
+  const R = currentRoute;
+  if (!R || nav.arrived) return;
+  const pr = projectOnRoute(fix.p);
+
+  // Off the route for a few fixes in a row: find a new one from here.
+  const limit = Math.max(25, (fix.acc || 0) * 0.8 + 10);
+  nav.offCount = pr.off > limit ? nav.offCount + 1 : 0;
+  if (nav.offCount >= 3 && Date.now() - nav.lastReroute > 8000) return reroute(fix);
+
+  const remaining = Math.max(0, R.total - pr.along);
+  if (remaining < 12) return arrive();
+  const mins = Math.max(1, Math.round(remaining / R.speed / 60));
+  const eta = new Date(Date.now() + remaining / R.speed * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  $("navEta").innerHTML = `${mins} min <span class="muted">· ${fmtDist(remaining)}</span>`;
+  $("navSub").textContent = `Arrive ${eta} · ${R.to.name}`;
+
+  const k = R.steps.findIndex(st => st.along > pr.along + 4);
+  const st = R.steps[k < 0 ? R.steps.length - 1 : k], next = R.steps[k + 1];
+  const toTurn = Math.max(0, st.along - pr.along);
+  const offNote = nav.offCount ? ` <span class="flag" style="background:#c62828">Off route?</span>` : "";
+  setBanner({ icon: st.icon, dist: toTurn < 15 ? "Now" : fmtDist(toTurn), instr: esc(st.text) + flagsHtml(st) + offNote,
+              then: next && !st.last ? `Then: ${esc(next.text)}` : "" });
+  if (k !== nav.stepK) {
+    nav.stepK = k;
+    speak(toTurn < 15 ? spokenStep(st) : `In ${sayDist(toTurn)}, ${spokenStep(st).replace(/^./, c => c.toLowerCase())}`);
+    if ([...st.conds].includes("steep")) setTimeout(() => speak("Caution, steep section ahead."), 2500);
+  } else if (toTurn < 15 && nav.nearSpoken !== k && !st.last) {
+    nav.nearSpoken = k; speak(spokenStep(st));
+  }
+}
+function reroute(fix) {
+  nav.lastReroute = Date.now(); nav.offCount = 0; nav.stepK = -1; nav.nearSpoken = -1;
+  places.from = { type: "point", latlng: fix.p, name: "Your location" };
+  inputs.from.value = "Your location"; inputs.from.parentElement.classList.add("has-value");
+  go({ keepView: true });
+  if (!currentRoute) {
+    setBanner({ icon: "⚠", dist: "No route", instr: `No ${opts.noStairs ? "step-free " : ""}route from here. Head back toward a path.`, cls: "alert" });
+    return speak("No route found from here.");
+  }
+  if (SIM) { sim.along = 0; sim.off = 0; }
+  setBanner({ icon: "↻", dist: "New route", instr: `Rerouting to ${esc(currentRoute.to.name)}…` });
+  speak("Finding a new route.");
+}
+function arrive() {
+  nav.arrived = true;
+  if (SIM) clearInterval(sim.timer);
+  const name = currentRoute.to.name;
+  setBanner({ icon: "✓", dist: "You've arrived", instr: esc(name), cls: "arrived",
+              then: placeEnds(places.to, opts).verifiedDoor ? "♿ Accessible door marked here" : "No accessible door marked here yet" });
+  $("navEta").innerHTML = "Arrived"; $("navSub").textContent = name;
+  $("navEnd").textContent = "Done";
+  speak(`You have arrived at ${name}.`);
+}
+$("navEnd").onclick = () => { $("navEnd").textContent = "End"; endNav(); };
+$("navVoice").onclick = () => {
+  nav.voice = !nav.voice; $("navVoice").setAttribute("aria-pressed", nav.voice); $("navVoice").textContent = nav.voice ? "🔊" : "🔇";
+  try { localStorage.setItem(STORE_KEY + ".voice", nav.voice ? "on" : "off"); } catch (e) {}
+  if (!nav.voice && "speechSynthesis" in window) speechSynthesis.cancel();
+};
+$("navVoice").setAttribute("aria-pressed", nav.voice); $("navVoice").textContent = nav.voice ? "🔊" : "🔇";
+map.on("dragstart", () => { if (nav.on) { nav.follow = false; document.body.classList.add("free"); } });
+$("recenter").onclick = () => { nav.follow = true; document.body.classList.remove("free"); if (lastFix) map.setView(lastFix.p, 19); };
+
+/* ---------- phone sheet, help, shareable links ---------- */
+let lastSummary = null;
+function setSheet(state) {
+  const card = $("card");
+  if (!isPhone()) state = "normal";
+  card.classList.toggle("collapsed", state === "peek");
+  card.classList.toggle("full", state === "full");
+  updatePeek();
+}
+function updatePeek() {
+  let title, sub, cta, act;
+  if (editing) { title = "Editing the map"; sub = "Tap a path or next to a building"; cta = "Done"; act = "done"; }
+  else if (picking) { title = "Choose a spot"; sub = $("pickText").textContent; cta = "Cancel"; act = "cancel"; }
+  else if (lastSummary) { title = lastSummary.title; sub = lastSummary.sub + " · tap for steps"; cta = "▶ Start"; act = "start"; }
+  else { title = "Where to?"; sub = "Search for a building"; cta = "Search"; act = "search"; }
+  $("peekTitle").innerHTML = title; $("peekSub").textContent = sub;
+  const b = $("peekCta"); b.textContent = cta; b.dataset.act = act; b.classList.toggle("go", act === "start");
+}
+$("peekCta").onclick = () => {
+  const act = $("peekCta").dataset.act;
+  if (act === "start") return startNav();
+  if (act === "done") return setEditing(false);
+  if (act === "cancel") { stopPicking(); return setSheet("normal"); }
+  setSheet("normal"); inputs[places.to ? "from" : "to"].focus();
+};
+$("peekMain").onclick = () => {
+  if (picking) { stopPicking(); return setSheet("normal"); }
+  setSheet("normal");
+  if (lastSummary && !editing) {      // "Steps": jump straight to the directions, past the search boxes
+    const sc = document.querySelector(".card-scroll");
+    sc.scrollTop = $("result").offsetTop - sc.offsetTop - 8;
+  } else if (!editing) inputs[places.to ? "from" : "to"].focus();
+};
+$("handle").onclick = () => setSheet($("card").classList.contains("collapsed") ? "normal" : "peek");
+matchMedia("(max-width: 720px)").addEventListener("change", () => setSheet("normal"));
+$("helpBtn").onclick = () => $("help").showModal();
+function writeHash() {
+  const enc = p => !p ? "" : p.type === "building" ? p.b.id : "";
+  const h = new URLSearchParams();
+  if (enc(places.from)) h.set("from", enc(places.from));
+  if (enc(places.to)) h.set("to", enc(places.to));
+  if (!opts.noStairs) h.set("mode", "shortest");
+  const s = h.toString();
+  history.replaceState(null, "", s ? "#" + s : location.pathname + location.search);
+}
+(function readHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get("mode") === "shortest") setMode(false);
+  for (const w of ["from", "to"]) {
+    const b = byId.get(h.get(w));
+    if (b) { places[w] = { type: "building", b, name: b.name }; inputs[w].value = b.name; inputs[w].parentElement.classList.add("has-value"); }
+  }
+  highlightBuildings();
+  if (places.from && places.to) go({ instant: true }); else renderEmpty();
+})();
+</script>
+</body>
+</html>
