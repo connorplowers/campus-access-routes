@@ -12,7 +12,7 @@
     --hws-purple: #4f2683; --hws-purple-dark: #3a1c62; --hobart-orange: #f26b21; --ws-green: #00843d;
     --accent: var(--hws-purple); --accent-soft: #eee8f7; --accent-text: #ffffff; --route: #4f2683;
     --cta: var(--hobart-orange); --cta-text: #1b1a22; --me: #1a73e8;
-    --stairs: #d62828; --steep: #c98a00; --rough: #8a5a2b; --blocked: #222222; --ok: var(--ws-green);
+    --stairs: #d62828; --steep: #c98a00; --rough: #8a5a2b; --blocked: #222222; --ok: var(--ws-green); --curb: #be185d;
     --start: var(--ws-green); --end: var(--hobart-orange);
     --warn-bg: #fff4de; --warn-text: #6b4300; --info-bg: #eef3ff; --info-text: #1e3a8a;
     --shadow: 0 6px 24px rgba(20, 16, 40, .18), 0 1px 3px rgba(20, 16, 40, .12);
@@ -36,9 +36,37 @@
   #map { position: fixed; inset: 0; }
 
   /* ---------- the floating card ---------- */
-  .card { position: fixed; z-index: 1000; top: 16px; left: 16px; width: 390px; max-height: calc(100% - 32px);
-    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  /* desktop: a left column holding the search card and, under it, the route card */
+  .panel { position: fixed; z-index: 1000; top: 16px; left: 16px; width: 390px; max-height: calc(100% - 32px);
+    display: flex; flex-direction: column; gap: 10px; }
+  .search-card { flex: none; position: relative; z-index: 2; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 0 16px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .card { flex: 0 1 auto; min-height: 0; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
     display: flex; flex-direction: column; overflow: hidden; }
+  .profile-btn { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 7px 12px; text-align: left;
+    border: 1.5px solid var(--line); background: var(--soft); border-radius: 12px; }
+  .profile-btn:hover { border-color: var(--accent); }
+  .pf-icon { font-size: 24px; width: 32px; text-align: center; flex: none; }
+  .pf-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+  .pf-label { font-size: 12px; color: var(--muted); }
+  .pf-name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pf-change { color: var(--accent); font-weight: 700; font-size: 14px; flex: none; }
+  dialog.pf-dialog { max-width: 480px; max-height: calc(100% - 32px); overflow-y: auto; }
+  .pf-list { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 10px; }
+  .pf-opt { display: grid; grid-template-columns: 40px 1fr; gap: 1px 10px; align-items: center; text-align: left; width: 100%;
+    border: 1.5px solid var(--line); background: var(--card); border-radius: 12px; padding: 10px 12px; }
+  .pf-opt[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+  .pf-opt .i { grid-row: span 2; font-size: 26px; text-align: center; }
+  .pf-opt .n { font-weight: 700; font-size: 15px; }
+  .pf-opt .d { font-size: 13px; color: var(--muted); }
+  .pf-tune summary { cursor: pointer; font-weight: 700; color: var(--accent); padding: 6px 0; }
+  .tune-row { display: flex; flex-direction: column; gap: 6px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .tune-row .lbl { font-size: 14px; font-weight: 600; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--soft); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { border: none; background: transparent; border-radius: 8px; min-height: 38px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .seg button[aria-checked="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+  .pf-done { width: 100%; margin-top: 14px; min-height: 46px; font-size: 16px; }
+  body.editing .search-card { display: none; }
   .card-scroll { overflow-y: auto; padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 14px; }
   .handle { display: none; }
   .peek { display: none; align-items: center; gap: 12px; padding: 6px 16px 14px; border: none; background: none; width: 100%; text-align: left; }
@@ -48,7 +76,8 @@
   .peek-sub { display: block; }
   .peek-cta { flex: none; border: none; background: var(--accent); color: var(--accent-text); border-radius: 999px; padding: 10px 18px; font-weight: 700; font-size: 15px; }
   .peek-cta.go { background: var(--cta); color: var(--cta-text); }
-  header.top { display: flex; align-items: center; gap: 10px; position: relative; margin: -16px -16px 0; padding: 14px 16px 16px;
+  header.top { display: flex; align-items: center; gap: 10px; position: relative; margin: 0 -16px; padding: 14px 16px 16px;
+    border-radius: var(--radius) var(--radius) 0 0;
     background: var(--hws-purple); color: #fff; }
   header.top::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
     background: linear-gradient(90deg, var(--hobart-orange) 0 50%, var(--ws-green) 50% 100%); }
@@ -183,7 +212,7 @@
 
   /* ---------- live navigation ---------- */
   .nav-top, .nav-bottom, .recenter { display: none; }
-  body.navigating .card, body.navigating .edit-banner, body.navigating .pick-banner { display: none !important; }
+  body.navigating .card, body.navigating .search-card, body.navigating .edit-banner, body.navigating .pick-banner { display: none !important; }
   body.navigating .nav-top { display: grid; }
   body.navigating .nav-bottom { display: flex; }
   body.navigating.free .recenter { display: flex; }
@@ -221,24 +250,34 @@
     border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 16px solid var(--me); transform-origin: 9px 26px; }
   .sim-tag { position: fixed; z-index: 1003; left: 8px; top: 50%; background: #1b1a22; color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 6px; opacity: .8; }
 
-  /* ---------- phones: bottom sheet ---------- */
+  /* ---------- phones: search fixed at the top, route sheet at the bottom ----------
+     The sheet only changes size when the person taps or drags it. */
   @media (max-width: 720px) {
-    .card { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 72%; border-radius: 18px 18px 0 0;
-      padding-bottom: env(safe-area-inset-bottom); transition: max-height .25s ease; }
-    .handle { display: flex; justify-content: center; padding: 8px 0 0; border: none; background: none; width: 100%; }
+    .panel { display: contents; }
+    .search-card { position: fixed; z-index: 1001; top: 0; left: 0; right: 0; border-radius: 0 0 18px 18px;
+      padding: 0 12px 10px; gap: 8px; }
+    header.top { margin: 0 -12px; border-radius: 0; padding: calc(8px + env(safe-area-inset-top)) 12px 11px; }
+    header.top .sub { display: none; }
+    header.top h1 { font-size: 16px; }
+    .logo { width: 30px; height: 30px; font-size: 17px; border-radius: 8px; }
+    .places { gap: 4px 8px; }
+    .field input { height: 42px; }
+    .profile-btn { min-height: 44px; padding: 4px 10px; }
+    .pf-icon { font-size: 20px; width: 26px; }
+    .pf-label { display: none; }
+    .card { position: fixed; z-index: 1000; left: 0; right: 0; bottom: 0; max-height: 58%; border-radius: 18px 18px 0 0;
+      padding-bottom: env(safe-area-inset-bottom); }
+    .handle { display: flex; justify-content: center; padding: 10px 0 4px; border: none; background: none; width: 100%; touch-action: none; }
     .handle span { width: 44px; height: 5px; border-radius: 3px; background: var(--line); }
-    .card-scroll { padding-top: 8px; }
-    .card:not(.collapsed) .handle { background: var(--hws-purple); }
-    .card:not(.collapsed) .handle span { background: rgba(255,255,255,.45); }
-    header.top { margin-top: -8px; padding-top: 6px; }
-    /* three sheet states: normal, peek (route summary only), full (while typing, so the keyboard can't hide suggestions) */
+    .peek { touch-action: none; }
+    .card-scroll { padding-top: 4px; }
     .card.collapsed .card-scroll, .card.collapsed .foot { display: none; }
     .card.collapsed .peek { display: flex; }
-    .card.full { top: 0; max-height: 100%; height: 100%; border-radius: 0; padding-top: env(safe-area-inset-top); }
-    .card.full .foot, .card.full .handle { display: none; }
+    body.picking .search-card { display: none; }
     .edit-banner { top: 12px; }
     .pick-banner { bottom: auto; top: 16px; }
-    .leaflet-top.leaflet-right { top: env(safe-area-inset-top); }
+    .leaflet-top.leaflet-right { top: var(--search-h, 0px); }
+    dialog.pf-dialog { width: 100%; max-width: none; max-height: 92%; margin: auto 0 0; border-radius: 18px 18px 0 0; }
   }
   @media (prefers-reduced-motion: reduce) { .card { transition: none; } }
 </style>
@@ -246,62 +285,58 @@
 <body>
 <div id="map" role="region" aria-label="Campus map"></div>
 
+<div class="panel" id="panel">
+<section class="search-card" id="searchCard" aria-label="Plan a route">
+  <header class="top">
+    <div class="logo" aria-hidden="true">♿</div>
+    <div class="titles">
+      <h1>Campus Access Routes</h1>
+      <p class="sub">Hobart and William Smith Colleges</p>
+    </div>
+    <button class="icon-btn" id="helpBtn" aria-label="How to use this map" title="How to use">?</button>
+  </header>
+  <div class="places">
+    <span class="dot" aria-hidden="true"></span>
+    <div class="field" id="fromField">
+      <label class="sr-only" for="fromInput">Starting point</label>
+      <input id="fromInput" type="text" placeholder="Starting point" autocomplete="off"
+             role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="fromList">
+      <button class="clear-x" type="button" aria-label="Clear starting point">✕</button>
+      <ul class="suggest" id="fromList" role="listbox" hidden></ul>
+    </div>
+    <button class="swap" id="swap" aria-label="Swap start and destination" title="Swap">⇅</button>
+    <span class="connector" aria-hidden="true"></span><span></span>
+    <span class="dot end" aria-hidden="true"></span>
+    <div class="field" id="toField">
+      <label class="sr-only" for="toInput">Destination</label>
+      <input id="toInput" type="text" placeholder="Where to?" autocomplete="off"
+             role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="toList">
+      <button class="clear-x" type="button" aria-label="Clear destination">✕</button>
+      <ul class="suggest" id="toList" role="listbox" hidden></ul>
+    </div>
+  </div>
+
+  <button class="profile-btn" id="profileBtn" aria-haspopup="dialog">
+    <span class="pf-icon" id="profileIcon" aria-hidden="true">🦽</span>
+    <span class="pf-text"><span class="pf-label">Route for</span><span class="pf-name" id="profileName">Manual wheelchair</span></span>
+    <span class="pf-change">Change</span>
+  </button>
+</section>
+
 <section class="card" id="card" aria-label="Directions">
-  <button class="handle" id="handle" aria-label="Expand or collapse panel"><span></span></button>
+  <button class="handle" id="handle" aria-label="Show more or less of the directions"><span></span></button>
   <div class="peek" id="peek">
-    <button class="peek-main" id="peekMain" aria-label="Show the full panel"><span class="peek-title" id="peekTitle"></span><span class="peek-sub" id="peekSub"></span></button>
-    <button class="peek-cta" id="peekCta">Steps ▲</button>
+    <button class="peek-main" id="peekMain" aria-label="Show the directions"><span class="peek-title" id="peekTitle"></span><span class="peek-sub" id="peekSub"></span></button>
+    <button class="peek-cta" id="peekCta">▶ Start</button>
   </div>
   <div class="card-scroll">
-    <header class="top">
-      <div class="logo" aria-hidden="true">♿</div>
-      <div class="titles">
-        <h1>Campus Access Routes</h1>
-        <p class="sub">Hobart and William Smith Colleges</p>
-      </div>
-      <button class="icon-btn" id="helpBtn" aria-label="How to use this map" title="How to use">?</button>
-    </header>
-
-    <!-- route planning -->
-    <div class="route-panel">
-      <div class="places">
-        <span class="dot" aria-hidden="true"></span>
-        <div class="field" id="fromField">
-          <label class="sr-only" for="fromInput">Starting point</label>
-          <input id="fromInput" type="text" placeholder="Starting point" autocomplete="off"
-                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="fromList">
-          <button class="clear-x" type="button" aria-label="Clear starting point">✕</button>
-          <ul class="suggest" id="fromList" role="listbox" hidden></ul>
-        </div>
-        <button class="swap" id="swap" aria-label="Swap start and destination" title="Swap">⇅</button>
-        <span class="connector" aria-hidden="true"></span><span></span>
-        <span class="dot end" aria-hidden="true"></span>
-        <div class="field" id="toField">
-          <label class="sr-only" for="toInput">Destination</label>
-          <input id="toInput" type="text" placeholder="Where to?" autocomplete="off"
-                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="toList">
-          <button class="clear-x" type="button" aria-label="Clear destination">✕</button>
-          <ul class="suggest" id="toList" role="listbox" hidden></ul>
-        </div>
-      </div>
-
-      <div class="mode" role="radiogroup" aria-label="Route type">
-        <button role="radio" id="modeStepFree" aria-checked="true"><span aria-hidden="true">♿</span> Step-free</button>
-        <button role="radio" id="modeAny" aria-checked="false"><span aria-hidden="true">🚶</span> Shortest</button>
-      </div>
-      <div class="chips" id="prefChips" role="group" aria-label="Step-free preferences">
-        <button class="chip" id="chipSteep" aria-pressed="true">Avoid steep hills</button>
-        <button class="chip" id="chipRough" aria-pressed="false">Avoid gravel &amp; grass</button>
-      </div>
-
-      <div id="result" aria-live="polite"></div>
-    </div>
+    <div class="route-panel"><div id="result" aria-live="polite"></div></div>
 
     <!-- editing -->
     <div class="edit-panel" aria-label="Improve the map">
       <h2 style="margin:0;font-size:17px">Help improve the map</h2>
       <ol class="edit-steps">
-        <li><strong>Tap a path</strong> to mark it as stairs, a steep slope, rough ground, blocked, or checked step-free.</li>
+        <li><strong>Tap a path</strong> to mark it as stairs, a steep slope, rough ground, a curb without a ramp, blocked, or checked step-free.</li>
         <li><strong>Tap next to a building</strong> where its accessible door is to add a ♿ door.</li>
         <li>Routes update right away. Changes are saved on this device.</li>
       </ol>
@@ -311,6 +346,7 @@
         <span class="swatch" style="background:var(--ok)"></span><span>Checked: step-free</span>
         <span class="swatch" style="background:var(--stairs)"></span><span>Stairs</span>
         <span class="swatch" style="background:var(--steep)"></span><span>Steep slope</span>
+        <span class="swatch" style="background:var(--curb)"></span><span>Curb without a ramp</span>
         <span class="swatch dashed"></span><span>Gravel, grass or dirt</span>
         <span class="swatch" style="background:var(--blocked)"></span><span>Blocked or closed</span>
       </div>
@@ -327,6 +363,19 @@
     <button class="link-btn" id="editBtn">✎ Fix the map</button>
   </footer>
 </section>
+</div>
+
+<dialog id="profileDlg" class="pf-dialog" aria-labelledby="pfTitle">
+  <h2 id="pfTitle" style="margin:0 0 4px;font-size:19px">How do you get around?</h2>
+  <p class="sub" style="font-size:14px">Routes are planned around what works for you. This is saved only on this device.</p>
+  <div class="pf-list" id="pfList" role="radiogroup" aria-labelledby="pfTitle"></div>
+  <details class="pf-tune" id="pfTune">
+    <summary>Fine-tune what to avoid</summary>
+    <div id="pfRows"></div>
+    <button class="link-btn" id="pfReset">Reset to the defaults for this choice</button>
+  </details>
+  <button class="btn primary pf-done" id="pfDone">Done</button>
+</dialog>
 
 <div class="edit-banner" role="status">Editing the map <button id="doneEdit2">Done</button></div>
 <div class="pick-banner" role="status"><span id="pickText">Tap the map to choose a spot</span> <button id="cancelPick">Cancel</button></div>
@@ -347,7 +396,7 @@
   <ol>
     <li><strong>Pick where you're going.</strong> Type a building name, or tap a building on the map.</li>
     <li><strong>Pick where you're starting.</strong> Use your location, a building, or a spot on the map.</li>
-    <li><strong>Step-free</strong> routes avoid stairs (and steep hills, if that's on). <strong>Shortest</strong> is the quickest walk.</li>
+    <li><strong>Route for</strong> sets how you get around (wheelchair, scooter, crutches, walker, low vision, or no needs). Routes avoid what's hard for you, and “Fine-tune” lets you adjust stairs, hills, rough ground, curbs and streets.</li>
     <li>Tap a direction to zoom to that spot on the map.</li>
     <li><strong>Start</strong> gives live, spoken turn-by-turn directions that follow you as you move, and finds a new route if you go another way.</li>
   </ol>
@@ -394,6 +443,7 @@ const FLAGS = {
   stairs:  { label: "Stairs",    color: "var(--stairs)" },
   steep:   { label: "Steep",     color: "var(--steep)" },
   rough:   { label: "Rough",     color: "var(--rough)" },
+  curb:    { label: "No curb ramp", color: "var(--curb)" },
   blocked: { label: "Blocked",   color: "var(--blocked)" },
 };
 const ROUGH = new Set(["gravel","fine_gravel","grass","dirt","ground","earth","mud","sand","unpaved","woodchips","pebblestone","compacted"]);
@@ -458,17 +508,21 @@ function segCondition(s) {
   const inc = parseFloat(s.tags.incline);
   if (!isNaN(inc) && Math.abs(inc) >= 8) return "steep";
   if (ROUGH.has(s.tags.surface)) return "rough";
+  if (s.tags.kerb === "raised") return "curb";
   return "";
 }
+/* Each route type says, for each kind of obstacle, "avoid" (never use), "prefer" (use only if much shorter) or "ok". */
+const FACTOR = { stairs: 8, curb: 4, steep: 3, rough: 2, road: 1.6 };
 function edgeCost(si, len, opt) {
   const s = C.segments[si], cond = segCondition(s);
   if (cond === "blocked") return Infinity;
-  if (!opt.noStairs) return len;
-  if (cond === "stairs") return Infinity;
   let k = 1;
-  if (cond === "steep") { if (opt.avoidSteep) return Infinity; k *= 4; }
-  if (cond === "rough") { if (opt.avoidRough) return Infinity; k *= 1.6; }
-  if (ROADS.has(s.kind) && cond !== "ok") k *= 1.25;   // prefer dedicated paths over driveways/streets
+  if (cond && cond !== "ok") {
+    const pref = opt.prefs[cond];
+    if (pref === "avoid") return Infinity;
+    if (pref === "prefer") k *= FACTOR[cond];
+  }
+  if (ROADS.has(s.kind) && cond !== "ok" && opt.prefs.road === "prefer") k *= FACTOR.road;
   return len * k;
 }
 function nearbyNodes(p, radius, minCount = 3) {
@@ -492,7 +546,7 @@ for (const b of C.buildings) {
 function placeEnds(place, opt) {
   if (place.type === "building") {
     const doors = edits.entrances.filter(e => e.b === place.b.id);
-    if (doors.length && opt.noStairs) return { ends: doors.map(e => [e.node, 0]), verifiedDoor: true };
+    if (doors.length && opt.accessible) return { ends: doors.map(e => [e.node, 0]), verifiedDoor: true };
     return { ends: bNodes.get(place.b.id), verifiedDoor: false };
   }
   return { ends: nearbyNodes(place.latlng, 25, 2), verifiedDoor: false };
@@ -577,10 +631,18 @@ L.control.zoom({ position: "topright" }).addTo(map);
 // Centre on the middle of campus (median building), ignoring outliers like the boathouse.
 const med = k => C.buildings.map(b => b.center[k]).sort((x, y) => x - y)[C.buildings.length >> 1];
 const campusCenter = [med(0), med(1)];
-// Centre a point in the part of the map the card doesn't cover.
+// How much of the map the search bar and route card cover.
+function insets() {
+  if (isPhone()) {
+    const sc = $("searchCard");
+    return { top: getComputedStyle(sc).display === "none" ? 0 : sc.offsetHeight, bottom: $("card").offsetHeight, left: 0 };
+  }
+  return { top: 0, bottom: 0, left: $("panel").offsetWidth + 16 };
+}
+// Centre a point in the part of the map nothing covers.
 function centerOn(latlng, z, animate = true) {
-  const card = $("card");
-  const off = isPhone() ? L.point(0, card.offsetHeight / 2) : L.point(-(card.offsetWidth + 16) / 2, 0);
+  const v = insets();
+  const off = L.point(-v.left / 2, (v.bottom - v.top) / 2);
   const target = map.unproject(map.project(latlng, z).add(off), z);
   if (animate) map.flyTo(target, z, { duration: 0.5 }); else map.setView(target, z, { animate: false });
 }
@@ -593,9 +655,9 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 function fitOpts() {
-  const card = $("card");
-  if (isPhone()) return { paddingTopLeft: [20, 70], paddingBottomRight: [20, card ? card.offsetHeight + 20 : 260] };
-  return { paddingTopLeft: [(card ? card.offsetWidth : 390) + 40, 30], paddingBottomRight: [70, 30] };
+  const v = insets();
+  if (isPhone()) return { paddingTopLeft: [24, v.top + 20], paddingBottomRight: [24, v.bottom + 20] };
+  return { paddingTopLeft: [v.left + 24, 30], paddingBottomRight: [70, 30] };
 }
 
 const css = getComputedStyle(document.documentElement);
@@ -678,6 +740,7 @@ const KeyCtl = L.Control.extend({ options: { position: "topright" }, onAdd() {
       <span class="swatch" style="background:${colorOf("var(--ok)")}"></span><span>Checked step-free</span>
       <span class="swatch" style="background:${colorOf("var(--stairs)")}"></span><span>Stairs</span>
       <span class="swatch" style="background:${colorOf("var(--steep)")}"></span><span>Steep</span>
+      <span class="swatch" style="background:${colorOf("var(--curb)")}"></span><span>No curb ramp</span>
       <span class="swatch dashed"></span><span>Rough surface</span>
       <span style="text-align:center">♿</span><span>Accessible door</span></div></div>`;
   const btn = wrap.querySelector("button"), box = wrap.querySelector(".key-box");
@@ -754,7 +817,7 @@ function locate(onFix, onFail) {
            err => { onFail && onFail(); toast(geoErrorText(err)); });
 }
 if (SIM) document.body.insertAdjacentHTML("beforeend", '<div class="sim-tag">Simulated location</div>');
-function toast(msg) { setSheet("normal"); showResult(`<div class="notes"><div class="note warn"><span class="n-ic">⚠</span><span>${esc(msg)}</span></div></div>`); }
+function toast(msg) { setSheet("open"); showResult(`<div class="notes"><div class="note warn"><span class="n-ic">⚠</span><span>${esc(msg)}</span></div></div>`); }
 
 /* ---------- choosing places ---------- */
 const places = { from: null, to: null };
@@ -774,7 +837,6 @@ function choose(which, place) {
   else {
     clearRoute();
     renderEmpty();
-    setSheet("normal");
     if (place && place.type === "building") centerOn(place.b.center, Math.max(map.getZoom(), 17));
     const other = which === "from" ? "to" : "from";
     if (place && !places[other] && !isPhone()) inputs[other].focus();
@@ -785,7 +847,6 @@ function startPicking(which) {
   document.body.classList.add("picking");
   $("pickText").textContent = `Tap the map to set your ${which === "from" ? "starting point" : "destination"}`;
   closeList(which); inputs[which].blur();
-  setSheet("peek");
 }
 function stopPicking() { picking = null; document.body.classList.remove("picking"); updatePeek(); }
 $("cancelPick").onclick = stopPicking;
@@ -831,13 +892,11 @@ function pickItem(which, it) {
 }
 for (const which of ["from", "to"]) {
   const inp = inputs[which], list = lists[which];
-  inp.addEventListener("focus", () => { inp.select(); renderList(which); setSheet("full"); });
+  inp.addEventListener("focus", () => { inp.select(); renderList(which); });
   inp.addEventListener("input", () => { inp.parentElement.classList.toggle("has-value", !!inp.value); renderList(which); });
   inp.addEventListener("blur", () => setTimeout(() => {
     closeList(which);
     if (places[which] && inp.value !== places[which].name) inp.value = places[which].name;   // restore after an abandoned edit
-    const other = inputs[which === "from" ? "to" : "from"];
-    if ($("card").classList.contains("full") && document.activeElement !== other) setSheet(places.from && places.to ? "peek" : "normal");
   }, 120));
   inp.addEventListener("keydown", e => {
     const items = list._items || [];
@@ -865,35 +924,79 @@ $("swap").onclick = () => {
   if (places.from && places.to) go();
 };
 
-/* ---------- options ---------- */
-const opts = { noStairs: true, avoidSteep: true, avoidRough: false };
-function setMode(stepFree) {
-  opts.noStairs = stepFree;
-  $("modeStepFree").setAttribute("aria-checked", stepFree);
-  $("modeAny").setAttribute("aria-checked", !stepFree);
-  $("prefChips").hidden = !stepFree;
-  writeHash();
-  if (places.from && places.to) go({ keepView: true });
+/* ---------- how you get around ---------- */
+const PREF_KEYS = [["stairs", "Stairs"], ["steep", "Steep hills"], ["rough", "Gravel, grass or dirt"],
+                   ["curb", "Curbs without ramps"], ["road", "Walking along streets"]];
+const PREF_LEVELS = [["avoid", "Never"], ["prefer", "Avoid if possible"], ["ok", "Fine"]];
+const PROFILES = {
+  manual:   { icon: "🦽", name: "Manual wheelchair", speed: 1.0,
+              desc: "No stairs or curbs. Stays off steep hills and rough ground.",
+              prefs: { stairs: "avoid", curb: "avoid", steep: "avoid", rough: "avoid", road: "prefer" } },
+  power:    { icon: "🦼", name: "Power wheelchair or scooter", speed: 1.4,
+              desc: "No stairs or curbs. Hills are fine; avoids grass and gravel when it can.",
+              prefs: { stairs: "avoid", curb: "avoid", steep: "ok", rough: "prefer", road: "prefer" } },
+  crutches: { icon: "🩼", name: "Crutches or cane", speed: 0.9,
+              desc: "Avoids stairs and hills when it can, and stays off rough ground.",
+              prefs: { stairs: "prefer", curb: "ok", steep: "prefer", rough: "avoid", road: "ok" } },
+  walker:   { icon: "🔋", name: "Walker or limited stamina", speed: 0.8,
+              desc: "No stairs. The flattest, smoothest way, even if it's a little longer.",
+              prefs: { stairs: "avoid", curb: "prefer", steep: "avoid", rough: "avoid", road: "ok" } },
+  vision:   { icon: "🦯", name: "Blind or low vision", speed: 1.0,
+              desc: "Prefers walkways to streets and paved paths to rough ground. Spoken directions on.",
+              prefs: { stairs: "ok", curb: "ok", steep: "ok", rough: "avoid", road: "prefer" } },
+  walking:  { icon: "🚶", name: "No mobility needs", speed: 1.3,
+              desc: "The shortest walking route.",
+              prefs: { stairs: "ok", curb: "ok", steep: "ok", rough: "ok", road: "ok" } },
+};
+const opts = {};
+let profileState = { id: "manual", prefs: null }, profileChosen = false;
+try { const v = JSON.parse(localStorage.getItem(STORE_KEY + ".profile")); if (v && PROFILES[v.id]) { profileState = v; profileChosen = true; } } catch (e) {}
+function applyProfile() {
+  const P = PROFILES[profileState.id];
+  const prefs = { ...P.prefs, ...(profileState.prefs || {}) };
+  const custom = PREF_KEYS.some(([k]) => prefs[k] !== P.prefs[k]);
+  Object.assign(opts, { id: profileState.id, prefs, speed: P.speed, name: P.name, icon: P.icon, custom,
+                        noStairs: prefs.stairs === "avoid", accessible: profileState.id !== "walking" });
+  $("profileIcon").textContent = P.icon;
+  $("profileName").textContent = P.name + (custom ? " (custom)" : "");
+  $("profileBtn").setAttribute("aria-label", `Route for ${P.name}${custom ? ", custom settings" : ""}. Change`);
 }
-$("modeStepFree").onclick = () => setMode(true);
-$("modeAny").onclick = () => setMode(false);
-document.querySelector(".mode").addEventListener("keydown", e => {
-  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
-    e.preventDefault(); setMode(!opts.noStairs); (opts.noStairs ? $("modeStepFree") : $("modeAny")).focus();
-  }
-});
-for (const [id, key] of [["chipSteep", "avoidSteep"], ["chipRough", "avoidRough"]]) {
-  $(id).onclick = () => {
-    opts[key] = !opts[key]; $(id).setAttribute("aria-pressed", opts[key]);
-    if (places.from && places.to) go({ keepView: true });
-  };
+function saveProfile() {
+  profileChosen = true;
+  try { localStorage.setItem(STORE_KEY + ".profile", JSON.stringify(profileState)); } catch (e) {}
 }
+function renderProfileDlg(focusSel) {
+  $("pfList").innerHTML = Object.entries(PROFILES).map(([id, P]) => `
+    <button class="pf-opt" role="radio" aria-checked="${id === profileState.id}" data-id="${id}">
+      <span class="i" aria-hidden="true">${P.icon}</span><span class="n">${P.name}</span><span class="d">${P.desc}</span></button>`).join("");
+  $("pfList").querySelectorAll(".pf-opt").forEach(b => b.onclick = () => {
+    profileState = { id: b.dataset.id, prefs: null };
+    if (b.dataset.id === "vision") setVoice(true);
+    applyProfile(); renderProfileDlg(`.pf-opt[data-id="${b.dataset.id}"]`);
+  });
+  $("pfRows").innerHTML = PREF_KEYS.map(([k, label]) => `
+    <div class="tune-row"><span class="lbl" id="lbl-${k}">${label}</span>
+      <div class="seg" role="radiogroup" aria-labelledby="lbl-${k}">${PREF_LEVELS.filter(([v]) => !(k === "road" && v === "avoid")).map(([v, t]) =>
+        `<button role="radio" aria-checked="${opts.prefs[k] === v}" data-k="${k}" data-v="${v}">${t}</button>`).join("")}</div></div>`).join("");
+  $("pfRows").querySelectorAll(".seg button").forEach(b => b.onclick = () => {
+    profileState.prefs = { ...(profileState.prefs || {}), [b.dataset.k]: b.dataset.v };
+    applyProfile(); renderProfileDlg(`.seg button[data-k="${b.dataset.k}"][data-v="${b.dataset.v}"]`);
+  });
+  if (focusSel) { const el = $("profileDlg").querySelector(focusSel); if (el) el.focus(); }
+}
+function openProfile() { renderProfileDlg(); $("profileDlg").showModal(); }
+$("profileBtn").onclick = openProfile;
+$("pfReset").onclick = () => { profileState.prefs = null; applyProfile(); renderProfileDlg(); };
+$("pfDone").onclick = () => $("profileDlg").close();
+$("profileDlg").addEventListener("close", () => { saveProfile(); if (places.from && places.to) go({ keepView: true }); });
+applyProfile();
 
 /* ---------- route + results ---------- */
 const routeLayer = L.layerGroup().addTo(map);
 let stepMarker = null, currentSteps = [], currentRoute = null;
 function showResult(html) { $("result").innerHTML = html; }
-function clearRoute() { routeLayer.clearLayers(); stepMarker = null; currentSteps = []; currentRoute = null; lastSummary = null; }
+let routeFailed = false;
+function clearRoute() { routeLayer.clearLayers(); stepMarker = null; currentSteps = []; currentRoute = null; lastSummary = null; routeFailed = false; }
 
 function renderEmpty() {
   if (places.from && places.to) return;
@@ -914,10 +1017,17 @@ function go({ keepView = false, instant = false } = {}) {
   const r = route(A.ends, B.ends, opts);
   clearRoute();
   if (!r) {
-    const tried = [opts.avoidSteep && "steep hills", opts.avoidRough && "gravel & grass"].filter(Boolean);
-    return showResult(`<div class="notes"><div class="note warn"><span class="n-ic">⚠</span><span><strong>No ${opts.noStairs ? "step-free " : ""}route found.</strong>
-      ${tried.length ? `Try allowing ${tried.join(" or ")}.` : "A path on the way may be marked as stairs or blocked."}</span></div></div>`);
+    const SHORT = { stairs: "stairs", steep: "steep hills", rough: "rough ground", curb: "curbs without ramps", road: "streets" };
+    const avoided = PREF_KEYS.filter(([k]) => opts.prefs[k] === "avoid").map(([k]) => SHORT[k]);
+    const list = avoided.length > 1 ? avoided.slice(0, -1).join(", ") + " or " + avoided[avoided.length - 1] : avoided[0];
+    routeFailed = true; updatePeek();
+    showResult(`<div class="notes"><div class="note warn"><span class="n-ic">⚠</span><span><strong>No route found for ${esc(opts.name.toLowerCase())}.</strong>
+      ${list ? `Every way there runs into something this route type avoids (${esc(list)}).` : "A path on the way is marked as blocked."}
+      <button class="link-btn" data-act="profile" style="padding:0">Change what to avoid</button></span></div></div>`);
+    $("result").querySelector('[data-act="profile"]').onclick = openProfile;
+    return;
   }
+  routeFailed = false;
   const line = r.path.map(n => N[n]);
   L.polyline(line, { color: "#ffffff", weight: 11, opacity: 0.95, renderer: canvas, interactive: false }).addTo(routeLayer);
   L.polyline(line, { color: colorOf("var(--route)"), weight: 7, renderer: canvas, interactive: false }).addTo(routeLayer);
@@ -927,12 +1037,11 @@ function go({ keepView = false, instant = false } = {}) {
   });
   L.circleMarker(line[0], { radius: 9, color: "#fff", weight: 3, fillColor: colorOf("var(--start)"), fillOpacity: 1 }).addTo(routeLayer).bindTooltip("Start: " + from.name);
   L.circleMarker(line[line.length - 1], { radius: 9, color: "#fff", weight: 3, fillColor: colorOf("var(--end)"), fillOpacity: 1 }).addTo(routeLayer).bindTooltip(to.name);
-  if (!keepView) setSheet("peek");
   if (instant) map.fitBounds(L.latLngBounds(line), { ...fitOpts(), maxZoom: 19, animate: false });
   else if (!keepView) map.flyToBounds(L.latLngBounds(line), { ...fitOpts(), duration: 0.7, maxZoom: 19 });
 
   let total = 0; for (let i = 0; i < line.length - 1; i++) total += dist(line[i], line[i + 1]);
-  const speed = opts.noStairs ? 1.0 : 1.3;            // m/s: manual wheelchair vs typical walk
+  const speed = opts.speed;                           // m/s, set by the route type
   const mins = Math.max(1, Math.round(total / speed / 60));
   currentSteps = buildSteps(r, to.name);
   const cum = [0]; for (let i = 1; i < line.length; i++) cum.push(cum[i - 1] + dist(line[i - 1], line[i]));
@@ -942,19 +1051,23 @@ function go({ keepView = false, instant = false } = {}) {
   const checkedLen = r.segs.reduce((t, si, i) => t + (segCondition(C.segments[si]) ? dist(N[r.path[i]], N[r.path[i + 1]]) : 0), 0);
 
   const warns = [], infos = [];
-  if (!opts.noStairs && conds.has("stairs")) warns.push("This route uses <strong>stairs</strong>. Switch to Step-free to avoid them.");
-  if (opts.noStairs && conds.has("steep")) warns.push("Includes a <strong>steep section</strong>. No flatter way was found.");
-  if (opts.noStairs && conds.has("rough")) warns.push("Crosses <strong>gravel, grass or dirt</strong>.");
-  if (opts.noStairs && to.type === "building" && !B.verifiedDoor) infos.push(`No accessible door marked for ${esc(to.name)} yet, so the route ends at the nearest path.`);
-  if (opts.noStairs && checkedLen < total * 0.95) infos.push(`Not checked in person yet. The map may be missing stairs or curbs. <button class="link-btn" data-act="edit" style="padding:0">Fix the map</button>`);
+  const WHAT = { stairs: "stairs", steep: "a steep section", rough: "gravel, grass or dirt", curb: "a curb without a ramp" };
+  for (const k of ["stairs", "curb", "steep", "rough"]) {
+    if (!conds.has(k)) continue;
+    if (opts.prefs[k] === "prefer") warns.push(`Includes <strong>${WHAT[k]}</strong>. No easier way was found.`);
+    else if (k === "stairs") infos.push("This route uses stairs.");
+  }
+  if (opts.accessible && to.type === "building" && !B.verifiedDoor) infos.push(`No accessible door marked for ${esc(to.name)} yet, so the route ends at the nearest path.`);
+  if (opts.accessible && checkedLen < total * 0.95) infos.push(`Not checked in person yet. The map may be missing stairs or curbs. <button class="link-btn" data-act="edit" style="padding:0">Fix the map</button>`);
 
-  const good = opts.noStairs && !conds.has("stairs");
-  lastSummary = { title: `${mins} min <span style="font-weight:400;font-size:15px;color:var(--muted)">${fmtDist(total)}</span>${good ? ` <span class="badge good">♿ Step-free</span>` : conds.has("stairs") ? ` <span class="badge bad">Has stairs</span>` : ""}`,
-                  sub: `to ${to.name}` };
+  const good = opts.accessible && !conds.has("stairs");
+  const badge = good ? `<span class="badge good">♿ Step-free</span>` : conds.has("stairs") ? `<span class="badge bad">Has stairs</span>` : "";
+  lastSummary = { title: `${mins} min <span style="font-weight:400;font-size:15px;color:var(--muted)">${fmtDist(total)}</span> ${badge}`,
+                  sub: `${opts.icon} to ${to.name}` };
   updatePeek();
   showResult(`
     <div class="summary"><span class="time">${mins} min</span><span class="dist">${fmtDist(total)}</span>
-      ${good ? `<span class="badge good">♿ Step-free</span>` : conds.has("stairs") ? `<span class="badge bad">Has stairs</span>` : ""}</div>
+      ${badge}</div>
     <div class="row"><button class="btn start" id="startNav">▶ Start live directions</button><button class="btn" id="clearBtn">✕ Clear</button></div>
     ${warns.length || infos.length ? `<div class="notes">
       ${warns.map(w => `<div class="note warn"><span class="n-ic" aria-hidden="true">⚠</span><span>${w}</span></div>`).join("")}
@@ -980,7 +1093,6 @@ function focusStep(i) {
   $("result").querySelectorAll("ol.steps li").forEach(li => li.classList.toggle("active", +li.dataset.i === i));
   if (stepMarker) routeLayer.removeLayer(stepMarker);
   stepMarker = L.circleMarker(s.at, { radius: 13, color: colorOf("var(--hobart-orange)"), weight: 4, fillColor: "#fff", fillOpacity: 0.6, interactive: false }).addTo(routeLayer);
-  setSheet("peek");
   centerOn(s.at, 19);
 }
 
@@ -993,7 +1105,7 @@ function setEditing(on) {
   // Paths only take taps while editing, so taps on buildings are not stolen by the walkways inside them.
   segLayers.forEach((l, i) => { l.options.interactive = on; l.setStyle({ weight: segStyle(C.segments[i]).weight + (on ? 2 : 0) }); });
   if (on) updateEditCount();
-  setSheet(on ? "peek" : (places.from && places.to ? "peek" : "normal"));
+  updatePeek();
 }
 $("editBtn").onclick = () => setEditing(!editing);
 $("doneEdit").onclick = $("doneEdit2").onclick = () => setEditing(false);
@@ -1112,7 +1224,7 @@ function enterNav(fix) {
   if (bgWatch != null) { geo.clear(bgWatch); bgWatch = null; }
   if (SIM) sim.along = 0;
   map.setView(fix.p, 19, { animate: false });
-  speak(`Starting ${opts.noStairs ? "step-free " : ""}directions to ${currentRoute.to.name}.`);
+  speak(`Starting ${opts.accessible ? "accessible " : ""}directions to ${currentRoute.to.name}.`);
   nav.watchId = geo.watch(onNavFix, err => {
     setBanner({ icon: "⚠", dist: "No GPS", instr: esc(geoErrorText(err)), cls: "alert" });
   });
@@ -1165,7 +1277,7 @@ function reroute(fix) {
   inputs.from.value = "Your location"; inputs.from.parentElement.classList.add("has-value");
   go({ keepView: true });
   if (!currentRoute) {
-    setBanner({ icon: "⚠", dist: "No route", instr: `No ${opts.noStairs ? "step-free " : ""}route from here. Head back toward a path.`, cls: "alert" });
+    setBanner({ icon: "⚠", dist: "No route", instr: `No route for ${esc(opts.name.toLowerCase())} from here. Head back toward a path.`, cls: "alert" });
     return speak("No route found from here.");
   }
   if (SIM) { sim.along = 0; sim.off = 0; }
@@ -1183,69 +1295,81 @@ function arrive() {
   speak(`You have arrived at ${name}.`);
 }
 $("navEnd").onclick = () => { $("navEnd").textContent = "End"; endNav(); };
-$("navVoice").onclick = () => {
-  nav.voice = !nav.voice; $("navVoice").setAttribute("aria-pressed", nav.voice); $("navVoice").textContent = nav.voice ? "🔊" : "🔇";
-  try { localStorage.setItem(STORE_KEY + ".voice", nav.voice ? "on" : "off"); } catch (e) {}
-  if (!nav.voice && "speechSynthesis" in window) speechSynthesis.cancel();
-};
+function setVoice(on) {
+  nav.voice = on; $("navVoice").setAttribute("aria-pressed", on); $("navVoice").textContent = on ? "🔊" : "🔇";
+  try { localStorage.setItem(STORE_KEY + ".voice", on ? "on" : "off"); } catch (e) {}
+  if (!on && "speechSynthesis" in window) speechSynthesis.cancel();
+}
+$("navVoice").onclick = () => setVoice(!nav.voice);
 $("navVoice").setAttribute("aria-pressed", nav.voice); $("navVoice").textContent = nav.voice ? "🔊" : "🔇";
 map.on("dragstart", () => { if (nav.on) { nav.follow = false; document.body.classList.add("free"); } });
 $("recenter").onclick = () => { nav.follow = true; document.body.classList.remove("free"); if (lastFix) map.setView(lastFix.p, 19); };
 
-/* ---------- phone sheet, help, shareable links ---------- */
-let lastSummary = null;
+/* ---------- phone route sheet ----------
+   Two sizes: "peek" (summary bar) and "open" (directions). It only changes when the person taps or drags it. */
+let lastSummary = null, sheetState = "peek";
 function setSheet(state) {
-  const card = $("card");
-  if (!isPhone()) state = "normal";
-  card.classList.toggle("collapsed", state === "peek");
-  card.classList.toggle("full", state === "full");
+  if (!isPhone()) state = "open";
+  sheetState = state;
+  $("card").classList.toggle("collapsed", state === "peek");
   updatePeek();
 }
 function updatePeek() {
-  let title, sub, cta, act;
+  let title, sub, cta = "", act = "";
   if (editing) { title = "Editing the map"; sub = "Tap a path or next to a building"; cta = "Done"; act = "done"; }
   else if (picking) { title = "Choose a spot"; sub = $("pickText").textContent; cta = "Cancel"; act = "cancel"; }
-  else if (lastSummary) { title = lastSummary.title; sub = lastSummary.sub + " · tap for steps"; cta = "▶ Start"; act = "start"; }
-  else { title = "Where to?"; sub = "Search for a building"; cta = "Search"; act = "search"; }
+  else if (lastSummary) { title = lastSummary.title; sub = lastSummary.sub; cta = "▶ Start"; act = "start"; }
+  else if (routeFailed) { title = "No route found"; sub = "Tap to see why"; }
+  else { title = "Where to?"; sub = "Search above, or tap a building on the map"; }
   $("peekTitle").innerHTML = title; $("peekSub").textContent = sub;
-  const b = $("peekCta"); b.textContent = cta; b.dataset.act = act; b.classList.toggle("go", act === "start");
+  const b = $("peekCta"); b.textContent = cta; b.dataset.act = act; b.hidden = !cta; b.classList.toggle("go", act === "start");
 }
 $("peekCta").onclick = () => {
   const act = $("peekCta").dataset.act;
   if (act === "start") return startNav();
   if (act === "done") return setEditing(false);
-  if (act === "cancel") { stopPicking(); return setSheet("normal"); }
-  setSheet("normal"); inputs[places.to ? "from" : "to"].focus();
+  if (act === "cancel") return stopPicking();
 };
-$("peekMain").onclick = () => {
-  if (picking) { stopPicking(); return setSheet("normal"); }
-  setSheet("normal");
-  if (lastSummary && !editing) {      // "Steps": jump straight to the directions, past the search boxes
-    const sc = document.querySelector(".card-scroll");
-    sc.scrollTop = $("result").offsetTop - sc.offsetTop - 8;
-  } else if (!editing) inputs[places.to ? "from" : "to"].focus();
-};
-$("handle").onclick = () => setSheet($("card").classList.contains("collapsed") ? "normal" : "peek");
-matchMedia("(max-width: 720px)").addEventListener("change", () => setSheet("normal"));
+// Tap to open or close; drag up or down to do the same.
+let drag = null, justDragged = false;
+for (const el of [$("handle"), $("peekMain")]) {
+  el.addEventListener("pointerdown", e => { if (isPhone()) drag = { y: e.clientY, moved: false }; });
+  el.addEventListener("click", () => {
+    if (justDragged) return;
+    if (el === $("handle")) setSheet(sheetState === "peek" ? "open" : "peek"); else setSheet("open");
+  });
+}
+window.addEventListener("pointermove", e => { if (drag && Math.abs(e.clientY - drag.y) > 10) drag.moved = true; });
+window.addEventListener("pointerup", e => {
+  if (!drag) return;
+  const dy = e.clientY - drag.y, moved = drag.moved; drag = null;
+  if (!moved) return;
+  justDragged = true; setTimeout(() => { justDragged = false; }, 60);
+  setSheet(dy < 0 ? "open" : "peek");
+});
+// Keep the map buttons below the phone search bar.
+new ResizeObserver(() => document.documentElement.style.setProperty("--search-h", $("searchCard").offsetHeight + "px")).observe($("searchCard"));
+matchMedia("(max-width: 720px)").addEventListener("change", () => setSheet(isPhone() ? "peek" : "open"));
+setSheet(isPhone() ? "peek" : "open");
 $("helpBtn").onclick = () => $("help").showModal();
 function writeHash() {
   const enc = p => !p ? "" : p.type === "building" ? p.b.id : "";
   const h = new URLSearchParams();
   if (enc(places.from)) h.set("from", enc(places.from));
   if (enc(places.to)) h.set("to", enc(places.to));
-  if (!opts.noStairs) h.set("mode", "shortest");
   const s = h.toString();
   history.replaceState(null, "", s ? "#" + s : location.pathname + location.search);
 }
 (function readHash() {
   const h = new URLSearchParams(location.hash.slice(1));
-  if (h.get("mode") === "shortest") setMode(false);
   for (const w of ["from", "to"]) {
     const b = byId.get(h.get(w));
     if (b) { places[w] = { type: "building", b, name: b.name }; inputs[w].value = b.name; inputs[w].parentElement.classList.add("has-value"); }
   }
   highlightBuildings();
   if (places.from && places.to) go({ instant: true }); else renderEmpty();
+  // First visit: ask how the person gets around, so the very first route already fits them.
+  if (!profileChosen && !SIM) openProfile();
 })();
 </script>
 </body>

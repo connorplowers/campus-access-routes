@@ -36,9 +36,14 @@ to test rerouting.
 
 ## How it works
 
-- **Routing:** walkways are split into segments at every junction. Step-free mode never uses a segment marked as
-  stairs or blocked, and it treats steep and rough segments as longer (or skips them if those options are on).
-  Routes go to user-marked accessible doors when a building has them, otherwise to the nearest path.
+- **Route types:** "Route for" picks how you get around: manual wheelchair, power wheelchair or scooter, crutches or
+  cane, walker or limited stamina, blind or low vision, or no mobility needs. Each one sets what to do about stairs,
+  steep hills, rough ground, curbs without ramps and walking along streets: **Never** (the route can't use it),
+  **Avoid if possible** (used only when it saves a lot of distance) or **Fine**. "Fine-tune" changes any of these.
+  The choice is saved only in the browser. Definitions are in `PROFILES` in `index.html`.
+- **Routing:** walkways are split into segments at every junction, and the cheapest way through them is found with the
+  route type's rules applied. Routes go to user-marked accessible doors when a building has them, otherwise to the
+  nearest path.
 - **Live directions:** each GPS fix is matched to the nearest point on the route. The banner shows the next turn and
   the distance to it, spoken directions announce each turn (mute with 🔊), and the screen is kept awake where the
   browser allows it. Three fixes in a row more than ~25 m from the route trigger a new route from where you are.
@@ -47,8 +52,8 @@ to test rerouting.
 
 ## Known gaps
 
-- OpenStreetMap marks only 4 staircases and no entrances on campus. Use "Fix the map" to mark stairs, slopes and
-  accessible doors. Edits are saved in the browser; use "Save to file" / "Load from file" to share them.
+- OpenStreetMap marks only 4 staircases and no entrances or curb ramps on campus. Use "Fix the map" to mark stairs,
+  slopes, curbs without ramps and accessible doors. Edits are saved in the browser; use "Save to file" / "Load from file" to share them.
 - There's no slope data yet.
 - Some campus buildings are missing or misspelled in OpenStreetMap. The app fixes the names it knows about,
   but the background map tiles still show the OSM spelling.
