@@ -3,6 +3,8 @@
 Step-free walking directions around Hobart and William Smith Colleges, built on OpenStreetMap data,
 with live turn-by-turn navigation.
 
+**Live site:** https://connorplowers.github.io/campus-access-routes/
+
 ## Run it
 
 ```bash
