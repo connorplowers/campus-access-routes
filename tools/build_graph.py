@@ -8,6 +8,7 @@ Output is a JS file that sets window.CAMPUS = {nodes, segments, buildings}.
   buildings: [{id, name, outline:[[lat,lon]...], center:[lat,lon]}]
 """
 import json
+import os
 import math
 import sys
 from collections import defaultdict
@@ -73,10 +74,18 @@ def main(src, dst):
                     })
                 start = i
 
+    # Name corrections checked against the HWS campus map (see tools/make_places.py).
+    places_file = os.path.join(os.path.dirname(src), "campus-places.json")
+    places = json.load(open(places_file)) if os.path.exists(places_file) else {}
+    names, hide = places.get("names", {}), set(places.get("hide", []))
+    also, keywords = places.get("also", {}), places.get("keywords", {})
+
     buildings = []
     for w in ways:
         t = w.get("tags", {})
-        if "building" not in t or "name" not in t:
+        wid = str(w["id"])
+        name = names.get(wid) or t.get("name")
+        if "building" not in t or not name or t.get("name") in hide:
             continue
         outline = [coords[n] for n in w["nodes"] if n in coords]
         if len(outline) < 3:
@@ -85,10 +94,20 @@ def main(src, dst):
         lon = sum(p[1] for p in outline) / len(outline)
         buildings.append({
             "id": f"w{w['id']}",
-            "name": t["name"],
+            "name": name,
+            "also": also.get(wid, []),
+            "keywords": keywords.get(wid, ""),
             "outline": [[round(a, 7), round(b, 7)] for a, b in outline],
             "center": [round(lat, 7), round(lon, 7)],
             "wheelchair": t.get("wheelchair", ""),
+        })
+    # Fields and open spaces: a point, given a small square outline so routing can reach it.
+    for i, pt in enumerate(places.get("points", [])):
+        la, lo, r = pt["lat"], pt["lon"], 0.00008
+        buildings.append({
+            "id": "p" + pt["name"].lower().replace(" ", "-").replace(".", ""), "name": pt["name"], "also": [], "keywords": "", "point": True,
+            "outline": [[la - r, lo - r], [la - r, lo + r], [la + r, lo + r], [la + r, lo - r], [la - r, lo - r]],
+            "center": [la, lo], "wheelchair": "",
         })
     buildings.sort(key=lambda b: b["name"].lower())
 

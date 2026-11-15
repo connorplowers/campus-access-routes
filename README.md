@@ -33,6 +33,9 @@ to test rerouting.
 - `data/osm-raw.json`: OpenStreetMap download for the campus area
 - `data/campus-graph.js`: walkway network built from it
 - `tools/build_graph.py`: rebuilds the network: `python3 tools/build_graph.py data/osm-raw.json data/campus-graph.js`
+- `tools/make_places.py` → `data/campus-places.json`: building names checked against the official HWS campus map
+  (fixes wrong or outdated OpenStreetMap labels, names buildings OSM left unnamed, adds fields and quads, and lists
+  offices inside each building so search finds them). Edit the script, run it, then rebuild the network.
 
 ## How it works
 
@@ -55,6 +58,6 @@ to test rerouting.
 - OpenStreetMap marks only 4 staircases and no entrances or curb ramps on campus. Use "Fix the map" to mark stairs,
   slopes, curbs without ramps and accessible doors. Edits are saved in the browser; use "Save to file" / "Load from file" to share them.
 - There's no slope data yet.
-- Some campus buildings are missing or misspelled in OpenStreetMap. The app fixes the names it knows about,
-  but the background map tiles still show the OSM spelling.
+- Building names come from the HWS campus map, but the background map tiles still show OpenStreetMap's labels,
+  which are wrong for a few buildings (e.g. Bristol Gymnasium is labeled "Winn-Sealy Gymnasium" there).
 - Phone GPS is typically accurate to 5–15 m outdoors and worse near tall buildings, so "Now" prompts can be early or late.

@@ -132,8 +132,15 @@
   /* empty state */
   .tips { background: var(--soft); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: var(--muted); }
   .tips strong { color: var(--text); }
-  .quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .quick button { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 5px 11px; font-size: 13px; }
+  .pop-head { margin: 0; font-size: 17px; }
+  .pop-hint { margin: -8px 0 0; font-size: 13px; color: var(--muted); }
+  .popular { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  .popular button { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: none; background: none;
+    border-bottom: 1px solid var(--line); padding: 9px 4px; min-height: 52px; border-radius: 8px; }
+  .popular button:hover { background: var(--accent-soft); }
+  .popular .ic { width: 34px; height: 34px; border-radius: 50%; background: var(--soft); display: grid; place-items: center; font-size: 17px; flex: none; }
+  .popular .pn { display: block; font-weight: 600; font-size: 15px; }
+  .popular .ps { display: block; font-size: 13px; color: var(--muted); }
 
   /* result */
   .summary { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -413,28 +420,13 @@ const STORE_KEY = "hwsAccessRoutes.v1";
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-/* ---------- building names: fix OSM typos, hide non-college businesses, add search words ---------- */
-const RENAME = {
-  "Guilick": "Gulick Hall", "Winn-Sealy Gymnasium": "Winn-Seeley Gymnasium", "Stweardson House": "Stewardson House",
-  "Carr-Macguire House": "Carr-McGuire House", "Sherril Hall and Bookstore": "Sherrill Hall & Bookstore",
-  "DeCordova": "de Cordova Hall", "Caird": "Caird Center", "Chaplain's house": "Chaplain's House",
-};
-const HIDE = new Set(["Arby's", "McDonald's", "Canandaigua National Bank & Trust", "Triana and Triana, D.D.S.",
-  "First Presbyterian Church", "Lacrosse the Nation"]);
-const KEYWORDS = {
-  "Warren Hunting Smith Library": "library books study whs",
-  "Scandling Center": "student center dining saga cafe food mail",
-  "Gearan Center for the Performing Arts": "theater theatre music dance performing arts",
-  "Winn-Seeley Gymnasium": "gym",
-  "Bristol Field House": "gym track field house athletics",
-  "Caird Center": "gym fitness sports recreation",
-  "Campus Safety": "security police help",
-  "Admissions": "visit tours",
-  "Sherrill Hall & Bookstore": "bookstore books",
-  "Bozzuto Boathouse & Dock": "rowing lake boathouse",
-};
-C.buildings = C.buildings.filter(b => !HIDE.has(b.name));
-C.buildings.forEach(b => { b.name = RENAME[b.name] || b.name; b.search = (b.name + " " + (KEYWORDS[b.name] || "")).toLowerCase(); });
+/* ---------- places ----------
+   Names, "also known as" names (offices and rooms inside) and search words come from data/campus-places.json,
+   which was checked against the official HWS campus map. See tools/make_places.py. */
+C.buildings.forEach(b => {
+  b.also = b.also || [];
+  b.search = [b.name, ...b.also, b.keywords || ""].join(" ").toLowerCase();
+});
 C.buildings.sort((a, b) => a.name.localeCompare(b.name));
 const byId = new Map(C.buildings.map(b => [b.id, b]));
 
@@ -673,7 +665,8 @@ function segStyle(s) {
 const BUILDING_STYLE = { color: "#6b5a8e", weight: 1.2, fillColor: "#7d6aa3", fillOpacity: 0.16 };
 const buildingLayers = new Map();
 C.buildings.forEach(b => {
-  const poly = L.polygon(b.outline, { ...BUILDING_STYLE, renderer: canvas })
+  const poly = (b.point ? L.circleMarker(b.center, { ...BUILDING_STYLE, radius: 9, fillOpacity: 0.35, renderer: canvas })
+                         : L.polygon(b.outline, { ...BUILDING_STYLE, renderer: canvas }))
     .bindTooltip(b.name, { sticky: true, direction: "top", offset: [0, -6] }).addTo(map);
   poly.on("click", e => {
     if (editing) return;                         // let the map handler offer "add door"
@@ -695,7 +688,8 @@ function openBuildingPopup(b, latlng) {
   const doors = edits.entrances.filter(e => e.b === b.id).length;
   const div = document.createElement("div");
   div.innerHTML = `<div class="pop-title">${esc(b.name)}</div>
-    <div class="pop-sub">${doors ? `♿ ${doors} accessible door${doors > 1 ? "s" : ""} marked` : "No accessible door marked yet"}</div>
+    ${b.also.length ? `<div class="pop-sub">Includes ${esc(b.also.slice(0, 3).join(", "))}${b.also.length > 3 ? " and more" : ""}</div>` : ""}
+    <div class="pop-sub">${b.point ? "Outdoor space" : doors ? `♿ ${doors} accessible door${doors > 1 ? "s" : ""} marked` : "No accessible door marked yet"}</div>
     <div class="pop-btns"><button data-w="from">Start here</button><button class="primary" data-w="to">Go here</button></div>`;
   div.querySelectorAll("button").forEach(btn => btn.onclick = () => {
     map.closePopup(); choose(btn.dataset.w, { type: "building", b, name: b.name });
@@ -866,8 +860,14 @@ function suggestions(which, q) {
     return [score, b];
   }).filter(Boolean).sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name));
   scored.slice(0, q ? 8 : 60).forEach(([, b]) => items.push({ kind: "building", icon: "🏛", label: b.name, b,
-    hint: edits.entrances.some(e => e.b === b.id) ? "♿ accessible door marked" : "" }));
+    hint: matchedAlso(b, words) || (edits.entrances.some(e => e.b === b.id) ? "♿ accessible door marked" : "") }));
   return items;
+}
+// If the search matched an office or room inside the building, say so ("Includes Au Bon Pain").
+function matchedAlso(b, words) {
+  if (!words.length || words.every(w => b.name.toLowerCase().includes(w))) return "";
+  const hit = b.also.find(a => words.every(w => a.toLowerCase().includes(w)));
+  return hit ? `Includes ${hit}` : "";
 }
 function renderList(which) {
   const list = lists[which], items = suggestions(which, inputs[which].value);
@@ -998,16 +998,32 @@ function showResult(html) { $("result").innerHTML = html; }
 let routeFailed = false;
 function clearRoute() { routeLayer.clearLayers(); stepMarker = null; currentSteps = []; currentRoute = null; lastSummary = null; routeFailed = false; }
 
+const POPULAR = [
+  ["📚", "Warren Hunting Smith Library", "Library, Au Bon Pain, IT Services"],
+  ["🍽", "Scandling Campus Center", "Saga dining, café, post office"],
+  ["🎭", "Gearan Center for the Performing Arts", "Theater, music and dance"],
+  ["🏀", "Bristol Gymnasium", "Basketball and the pool"],
+  ["🏋", "Caird Center for Sports and Recreation", "Fitness center"],
+  ["🏟", "Robert A. Bristol Field House", "Indoor track and athletics"],
+  ["🩺", "Hubbs Health Center", "Health services"],
+  ["🎓", "Admissions Center", "Visits, tours and financial aid"],
+  ["🛍", "Sherrill Hall & College Store", "Bookstore"],
+  ["🛡", "Campus Safety", "Help and security"],
+];
 function renderEmpty() {
   if (places.from && places.to) return;
-  const popular = ["Warren Hunting Smith Library", "Scandling Center", "Gearan Center for the Performing Arts", "Bristol Field House"]
-    .map(n => C.buildings.find(b => b.name === n)).filter(Boolean);
-  const need = !places.to ? "where you're going" : "where you're starting";
-  showResult(`<div class="tips"><strong>Choose ${need}.</strong> Type a building name, or tap a building on the map.
-    ${!places.to ? `<div class="quick">${popular.map(b => `<button data-b="${b.id}">${esc(b.name.replace(" for the Performing Arts", ""))}</button>`).join("")}</div>` : ""}</div>`);
+  const which = places.to ? "from" : "to";
+  const items = POPULAR.map(([icon, name, sub]) => ({ icon, sub, b: C.buildings.find(b => b.name === name) }))
+    .filter(it => it.b && !(places.to && places.to.b === it.b));
+  showResult(`<h2 class="pop-head">Popular locations</h2>
+    <p class="pop-hint">${which === "to" ? "Tap one to get directions there, or search above." : "Where are you starting from? Tap one, or use your location."}</p>
+    <ul class="popular">${which === "from" ? `<li><button data-gps="1"><span class="ic" aria-hidden="true">◎</span><span><span class="pn">Your location</span><span class="ps">Use GPS</span></span></button></li>` : ""}
+    ${items.map(it => `<li><button data-b="${it.b.id}"><span class="ic" aria-hidden="true">${it.icon}</span><span><span class="pn">${esc(it.b.name)}</span><span class="ps">${esc(it.sub)}</span></span></button></li>`).join("")}</ul>`);
   $("result").querySelectorAll("[data-b]").forEach(btn => btn.onclick = () => {
-    const b = byId.get(btn.dataset.b); choose("to", { type: "building", b, name: b.name });
+    const b = byId.get(btn.dataset.b); choose(which, { type: "building", b, name: b.name });
   });
+  const gps = $("result").querySelector("[data-gps]");
+  if (gps) gps.onclick = () => pickItem("from", { kind: "gps" });
 }
 
 function go({ keepView = false, instant = false } = {}) {
@@ -1320,7 +1336,7 @@ function updatePeek() {
   else if (picking) { title = "Choose a spot"; sub = $("pickText").textContent; cta = "Cancel"; act = "cancel"; }
   else if (lastSummary) { title = lastSummary.title; sub = lastSummary.sub; cta = "▶ Start"; act = "start"; }
   else if (routeFailed) { title = "No route found"; sub = "Tap to see why"; }
-  else { title = "Where to?"; sub = "Search above, or tap a building on the map"; }
+  else { title = "Where to?"; sub = "Search above, or tap for popular locations"; cta = "Popular ▲"; act = "popular"; }
   $("peekTitle").innerHTML = title; $("peekSub").textContent = sub;
   const b = $("peekCta"); b.textContent = cta; b.dataset.act = act; b.hidden = !cta; b.classList.toggle("go", act === "start");
 }
@@ -1329,6 +1345,7 @@ $("peekCta").onclick = () => {
   if (act === "start") return startNav();
   if (act === "done") return setEditing(false);
   if (act === "cancel") return stopPicking();
+  if (act === "popular") return setSheet("open");
 };
 // Tap to open or close; drag up or down to do the same.
 let drag = null, justDragged = false;
